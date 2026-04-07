@@ -20,7 +20,12 @@ export default function KYCPage() {
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
 
   // Document Configuration
-  const docConfig = [
+  const docConfig: Array<{
+    id: DocumentType;
+    name: string;
+    acceptedFiles: Record<string, string[]>;
+    required: boolean;
+  }> = [
     { 
       id: 'aadhaar' as DocumentType, 
       name: 'Aadhaar Card', 
@@ -36,19 +41,19 @@ export default function KYCPage() {
     { 
       id: 'selfie' as DocumentType, 
       name: 'Selfie / Live Photo', 
-      acceptedFiles: { 'image/jpeg': [], 'image/png': [] },
+      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] },
       required: true 
     },
     { 
       id: 'marksheet' as DocumentType, 
       name: 'Latest Marksheet', 
-      acceptedFiles: { 'application/pdf': ['.pdf'] },
+      acceptedFiles: { 'application/pdf': ['.pdf'], 'image/jpeg': [], 'image/png': [] },
       required: true 
     },
     { 
       id: 'income' as DocumentType, 
       name: 'Income Certificate / ITR', 
-      acceptedFiles: { 'application/pdf': ['.pdf'] },
+      acceptedFiles: { 'application/pdf': ['.pdf'], 'image/jpeg': [], 'image/png': [] },
       required: false 
     },
     { 
@@ -64,9 +69,10 @@ export default function KYCPage() {
     
     try {
       setDocumentStatus(docType as DocumentType, 'uploading');
-      const response = await uploadDocument(docType, file);
+      const response = await uploadDocument(docType, file, undefined);
       
-      if (response.success) {
+      // uploadDocument returns { doc_id, minio_path, status } — treat any non-throw as success
+      if (response?.status !== 'error') {
         setDocumentStatus(docType as DocumentType, 'verified', file.name);
       }
     } catch (error) {
@@ -157,7 +163,7 @@ export default function KYCPage() {
                 fileName={documents[doc.id].fileName}
                 error={documents[doc.id].error}
                 onFileSelect={(file) => handleFileUpload(doc.id, file)}
-                onOpenCamera={doc.id === 'selfie' ? () => setIsWebcamOpen(true) : undefined}
+                onOpenCamera={doc.id === 'selfie' ? () => setIsWebcamOpen(true) : () => {}}
                 acceptedFiles={doc.acceptedFiles}
               />
             ))}

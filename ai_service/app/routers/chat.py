@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import uuid
 
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 
 from app.agents.conversation_agent import process_message
 from app.models.requests import ChatRequest
@@ -41,4 +43,56 @@ async def chat_message(body: ChatRequest, request: Request) -> ChatResponse:
         sources=[],
         conversation_id=conversation_id,
         current_stage=current_stage,
+    )
+
+
+@router.post("/stream")
+async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
+    """SSE streaming endpoint — frontend calls this via sendChatStream()."""
+    from app.services import qdrant_service as qdrant_svc
+    import json
+
+    conversation_id = body.conversation_id or str(uuid.uuid4())
+    embedder = getattr(request.app.state, "embedder", None)
+
+    reply, current_stage = await process_message(
+        message=body.message,
+        conversation_id=conversation_id,
+        user_id=body.user_id,
+        embedder=embedder,
+        qdrant_service=qdrant_svc,
+    )
+
+    # Persist history
+    history = await redis_service.get_json(f"chat:{conversation_id}")
+    if not isinstance(history, list):
+        history = []
+    history.append({"role": "user", "content": body.message})
+    history.append({"role": "assistant", "content": reply})
+    history = history[-20:]
+    await redis_service.set_json(f"chat:{conversation_id}", history, ttl=86400)
+
+    async def event_generator():
+        # Stream word-by-word for a realistic typewriter effect
+        words = reply.split(" ")
+        for i, word in enumerate(words):
+            chunk = word if i == len(words) - 1 else word + " "
+            payload = json.dumps({"text": chunk, "session_id": conversation_id})
+            yield f"data: {payload}\n\n"
+            await asyncio.sleep(0.02)  # 20ms per word
+        done_payload = json.dumps({
+            "text": "",
+            "session_id": conversation_id,
+            "current_stage": current_stage,
+        })
+        yield f"data: {done_payload}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )

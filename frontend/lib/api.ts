@@ -103,11 +103,11 @@ export async function getProfile(userId: string) {
 
 // ─── Documents ───────────────────────────────────────────────────────────────
 
-export async function uploadDocument(docType: string, file: File, userId: string) {
+export async function uploadDocument(docType: string, file: File, userId?: string) {
   const form = new FormData();
   form.append('file', file);
   form.append('doc_type', docType);
-  form.append('user_id', userId);
+  if (userId) form.append('user_id', userId);
   const res = await apiClient.post('/documents/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
@@ -233,10 +233,16 @@ export const getDisbursalSchedule = async (appId: string) => {
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
 export async function sendChatMessage(message: string, conversationId?: string, language = 'en') {
+  const userId =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('user_id') ||
+        (await import('@/store/authStore')).useAuthStore.getState().userId ||
+        undefined
+      : undefined;
   const res = await aiClient.post('/chat/message', {
     message,
     conversation_id: conversationId || `conv-${Date.now()}`,
-    user_id: typeof window !== 'undefined' ? sessionStorage.getItem('user_id') || undefined : undefined,
+    user_id: userId,
     language,
   });
   return res.data;
@@ -333,4 +339,50 @@ export async function getAuditTrail(appId: string) {
 export async function createGrievance(data: { app_id?: string; subject: string; description: string }) {
   const res = await apiClient.post('/audit/grievance', data);
   return res.data;
+}
+
+// ─── Course ROI Predictor ──────────────────────────────────────────────────────
+
+export interface ROIPrediction {
+  course: string;
+  institution: string;
+  avg_salary_lpa: number;
+  placement_probability: number;
+  loan_payback_years: number;
+  roi_score: number;
+  career_paths: string[];
+  salary_range: { min: number; max: number };
+  ai_recommendation: string;
+  risk_adjustment: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+export async function getRoiPrediction(
+  course: string,
+  institution: string,
+  loanAmount = 500000,
+  category?: string
+): Promise<ROIPrediction> {
+  try {
+    const res = await aiClient.post('/roi/predict', {
+      course,
+      institution,
+      loan_amount: loanAmount,
+      category,
+    });
+    return res.data as ROIPrediction;
+  } catch {
+    // Fallback heuristic when AI service is down
+    return {
+      course,
+      institution,
+      avg_salary_lpa: 8,
+      placement_probability: 75,
+      loan_payback_years: 2.5,
+      roi_score: 7.2,
+      career_paths: ['Graduate Officer', 'Research Associate', 'Government Services'],
+      salary_range: { min: 5, max: 12 },
+      ai_recommendation: 'Moderate ROI — explore skill development programs.',
+      risk_adjustment: 'MEDIUM',
+    };
+  }
 }

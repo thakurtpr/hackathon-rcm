@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useApplicationStore } from '@/store/applicationStore';
+import { useApplicationStore, PipelineStage } from '@/store/applicationStore';
 import { getApplicationStatus } from '@/lib/api';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
@@ -36,7 +36,7 @@ export const useApplicationStatusSocket = (applicationId: string | null) => {
         const data = await getApplicationStatus(applicationId);
         if (data?.pipeline_stages) {
           Object.entries(data.pipeline_stages).forEach(([stage, status]) => {
-            updateStageStatus(stage, status as string);
+            updateStageStatus(stage, status as PipelineStage['status']);
           });
         }
       } catch {
@@ -77,7 +77,7 @@ export const useApplicationStatusSocket = (applicationId: string | null) => {
         // Handle different message types from backend
         if (payload.pipeline_stages) {
           Object.entries(payload.pipeline_stages).forEach(([stage, status]) => {
-            updateStageStatus(stage, status as string);
+            updateStageStatus(stage, status as PipelineStage['status']);
           });
         } else if (payload.stage && payload.status) {
           updateStageStatus(payload.stage, payload.status);

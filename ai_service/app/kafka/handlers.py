@@ -13,6 +13,7 @@ from app.pipelines import (
 from app.agents import orchestrator
 from app.kafka import producer as kafka_producer
 from app.services import backend_client, minio_client, redis_service, qdrant_service
+from app.services.risk_model import predict_risk
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,40 @@ async def handle_eligibility_done(event: dict) -> None:
     behavioral_cache = await redis_service.get_json(f"behavioral_result:{app_id}") or {}
     pq_score = float(behavioral_cache.get("pq_score", 0.0))
 
+    # ── Wire XGBoost risk model ─────────────────────────────────────────────────
+    income = float(profile.get("income", 0) or 0)
+    cibil_score = float(profile.get("cibil_score", 0) or 0)
+    loan_amount = float(profile.get("loan_amount", 0) or 0)
+    academic_score = float(profile.get("academic_score", 0) or 0)
+    employment_type = profile.get("employment_type", "student") or "student"
+    collateral_value = float(profile.get("collateral_value", 0) or 0)
+
+    risk_band = predict_risk(
+        income=income,
+        cibil_score=cibil_score,
+        loan_amount=loan_amount,
+        academic_score=academic_score,
+        employment_type=employment_type,
+        collateral_value=collateral_value,
+    )
+    logger.info("[XGBoost] app_id=%s risk_band=%s (composite=%.1f)", app_id, risk_band, composite_score)
+
+    # POST risk_band to backend eligibility endpoint
+    await backend_client.post(
+        "/eligibility/compute",
+        {
+            "app_id": app_id,
+            "academic_score": academic_score,
+            "financial_score": min(income / 10000, 100),
+            "pq_score": pq_score,
+            "doc_trust_score": float(profile.get("doc_trust_score", 80) or 80),
+            "kyc_completeness": 90.0,
+            "fraud_flag": bool(payload.get("fraud_flag", False)),
+            "risk_band": risk_band,
+        },
+    )
+    # ────────────────────────────────────────────────────────────────────────────
+
     # Run scholarship matcher AND agents pipeline IN PARALLEL
     scholarship_result, agent_state = await asyncio.gather(
         scholarship_pipeline.match(
@@ -171,6 +206,7 @@ async def handle_eligibility_done(event: dict) -> None:
             "app_id": app_id,
             "user_id": user_id,
             "decision": band,
+            "risk_band": risk_band,
             "approved_amount": profile.get("loan_amount"),
             "reason": "See explanation result",
         },

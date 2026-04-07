@@ -9,8 +9,11 @@ interface User {
 interface AuthState {
   accessToken: string | null;
   user: User | null;
+  userId: string | null;
+  intent: 'loan' | 'scholarship' | 'both' | null;
+  kycStatus: string | null;
   isAuthenticated: boolean;
-  login: (token: string, userData: User) => void;
+  login: (token: string, userData: User, intent?: string, kycStatus?: string) => void;
   logout: () => void;
 }
 
@@ -19,17 +22,26 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       accessToken: null,
       user: null,
+      userId: null,
+      intent: null,
+      kycStatus: null,
       isAuthenticated: false,
-      login: (token, userData) =>
+      login: (token, userData, intent, kycStatus) =>
         set({
           accessToken: token,
           user: userData,
+          userId: userData.id,
+          intent: (intent as AuthState['intent']) || 'loan',
+          kycStatus: kycStatus || 'pending',
           isAuthenticated: true,
         }),
       logout: () =>
         set({
           accessToken: null,
           user: null,
+          userId: null,
+          intent: null,
+          kycStatus: null,
           isAuthenticated: false,
         }),
     }),

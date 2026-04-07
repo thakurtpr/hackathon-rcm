@@ -12,6 +12,7 @@ from app.routers.behavioral import router as behavioral_router
 from app.routers.chat import router as chat_router
 from app.routers.fraud import router as fraud_router
 from app.routers.health import router as health_router
+from app.routers.roi import router as roi_router
 from app.services import minio_client, qdrant_service
 from app.services.risk_model import load_model as load_risk_model
 
@@ -20,6 +21,29 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+
+
+_LOAN_POLICIES = [
+    {"id": "p001", "source": "RBI Education Loan Circular 2013", "text": "RBI education loan circular 2013 guidelines: Education loans cover tuition fees, examination fees, library and laboratory fees, purchase of books, equipment, instruments, uniforms. Travel expenses, study tours, project work, and thesis expenses are also eligible. Margin: nil for loans up to ₹4 lakh; 5% for domestic loans above ₹4 lakh; 15% for abroad."},
+    {"id": "p002", "source": "CSIS Central Interest Subsidy Scheme", "text": "Central Scheme to provide Interest Subsidy (CSIS): Eligibility for students from EWS with annual family income up to ₹4.5 lakh. Interest subsidy during moratorium period for loans up to ₹7.5 lakh."},
+    {"id": "p003", "source": "Vidya Lakshmi Portal", "text": "Vidya Lakshmi portal: Students register with Aadhaar-linked mobile, complete CAF once and apply to multiple banks. Linked with National Scholarship Portal."},
+    {"id": "p004", "source": "IBA Model Education Loan Scheme", "text": "IBA Model Education Loan Scheme: Loans up to ₹10 lakh for India, ₹20 lakh for abroad. No collateral for loans up to ₹7.5 lakh. Repayment 5-15 years."},
+    {"id": "p005", "source": "PM Vidya Lakshmi Scheme 2024", "text": "PM Vidya Lakshmi: Loans up to ₹10 lakh with 3% interest subvention for family income up to ₹8 lakh. No collateral needed. Students in NAAC/NIRF-ranked institutions in India."},
+    {"id": "p006", "source": "RBI Repayment Holiday Rules", "text": "Repayment starts one year after course completion or six months after securing employment, whichever is earlier. Banks cannot demand repayment before moratorium ends."},
+    {"id": "p007", "source": "RBI Prepayment Rules", "text": "No prepayment penalty on education loans with floating interest rates. Foreclosure permitted without penalty on floating-rate loans."},
+    {"id": "p008", "source": "Income Tax Section 80E", "text": "Section 80E: Deduction on education loan interest for 8 consecutive years. No upper limit. Applies to loans for self, spouse, children, or legal ward."},
+    {"id": "p009", "source": "IBA Eligible Courses", "text": "Eligible courses: graduation, post-graduation, professional courses, technical diplomas from UGC/AICTE/IMC-approved institutions. Includes medicine, engineering, management, law, agriculture."},
+    {"id": "p010", "source": "RBI Documentation Requirements", "text": "Documents required: application form, Aadhaar, PAN, academic records, admission letter, fee structure, income proof, bank statements. Collateral required above ₹7.5 lakh."},
+]
+
+
+async def seed_loan_policies(embedder, qdrant_svc) -> None:
+    import hashlib
+    for p in _LOAN_POLICIES:
+        embedding = await asyncio.to_thread(embedder.encode, p["text"])
+        uid = str(int(hashlib.md5(p["id"].encode()).hexdigest(), 16) % (2**63))
+        await qdrant_svc.upsert("loan_policies", uid, embedding.tolist(), p)
+    logger.info("Seeded %d loan policy documents", len(_LOAN_POLICIES))
 
 
 async def seed_scholarships(embedder, qdrant_svc) -> None:
@@ -122,6 +146,13 @@ async def lifespan(app: FastAPI):
             await seed_scholarships(app.state.embedder, qdrant_service)
             logger.info("Scholarships seeded ✓")
 
+        # Seed loan_policies if empty (P1 fix — previously only done by demo_seed.py)
+        policy_check = await qdrant_service.search("loan_policies", [0.0] * 384, limit=1)
+        if not policy_check:
+            logger.info("Seeding loan_policies into Qdrant...")
+            await seed_loan_policies(app.state.embedder, qdrant_service)
+            logger.info("Loan policies seeded ✓")
+
     # 7. Load XGBoost Risk Model
     logger.info("Loading XGBoost risk model...")
     try:
@@ -161,3 +192,4 @@ app.include_router(health_router)
 app.include_router(behavioral_router, prefix="/behavioral")
 app.include_router(chat_router, prefix="/chat")
 app.include_router(fraud_router)
+app.include_router(roi_router, prefix="/roi")

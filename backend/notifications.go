@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"net/smtp"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,11 +16,11 @@ import (
 )
 
 type NotificationRequest struct {
-	UserID  string `json:"user_id"`
-	Channel string `json:"channel"` // email | sms
+	UserID    string `json:"user_id"`
+	Channel   string `json:"channel"` // email | sms
 	Recipient string `json:"recipient"`
-	Subject string `json:"subject"`
-	Message string `json:"message" binding:"required"`
+	Subject   string `json:"subject"`
+	Message   string `json:"message" binding:"required"`
 }
 
 func SendNotificationHandler(c *gin.Context) {
@@ -91,17 +93,22 @@ func sendSMS(to, message string) error {
 		return nil
 	}
 
-	// Twilio REST API call
-	url := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", accountSID)
-	data := fmt.Sprintf("From=%s&To=%s&Body=%s", fromNumber, to, message)
+	// Twilio REST API — correct form-encoded body
+	apiURL := fmt.Sprintf("https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json", accountSID)
+	formData := url.Values{}
+	formData.Set("From", fromNumber)
+	formData.Set("To", to)
+	formData.Set("Body", message)
+	encoded := formData.Encode()
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, _ := http.NewRequestWithContext(context.Background(), "POST", url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "POST", apiURL, strings.NewReader(encoded))
+	if err != nil {
+		return fmt.Errorf("twilio request build failed: %w", err)
+	}
 	req.SetBasicAuth(accountSID, authToken)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Body = http.NoBody
-	// TODO: set body from data
-	_ = data
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -110,6 +117,7 @@ func sendSMS(to, message string) error {
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("twilio error: %d", resp.StatusCode)
 	}
+	log.Printf("[SMS] Twilio: sent to %s", to)
 	return nil
 }
 

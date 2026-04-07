@@ -220,6 +220,7 @@ func LoginHandler(c *gin.Context) {
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"user_id":       userID,
+		"intent":        intent,
 		"kyc_status":    kycStatus,
 		"app_status":    "NEW",
 	})
@@ -240,7 +241,13 @@ func RefreshTokenHandler(c *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, err := generateTokens(userID, "loan")
+	// Read intent from DB to preserve user's actual intent
+	intent := "loan"
+	if DB != nil {
+		DB.QueryRow(`SELECT COALESCE(intent,'loan') FROM users WHERE id=$1`, userID).Scan(&intent)
+	}
+
+	accessToken, refreshToken, err := generateTokens(userID, intent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
 		return
@@ -252,6 +259,7 @@ func RefreshTokenHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
+		"intent":        intent,
 	})
 }
 

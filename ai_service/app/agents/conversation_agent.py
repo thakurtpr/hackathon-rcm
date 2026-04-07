@@ -394,9 +394,11 @@ def call_llm(messages: list, max_tokens: int = 800) -> str:
 # ─── Backend API helpers ──────────────────────────────────────────────────────
 async def _api_put_profile(user_id: str, profile: dict) -> bool:
     try:
+        settings = get_settings()
+        base = settings.backend_base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.put(
-                f"http://localhost:3000/v1/users/{user_id}/profile",
+                f"{base}/users/{user_id}/profile",
                 json=profile,
             )
             return resp.status_code < 400
@@ -407,9 +409,11 @@ async def _api_put_profile(user_id: str, profile: dict) -> bool:
 
 async def _api_create_application(user_id: str, app_type: str) -> Optional[str]:
     try:
+        settings = get_settings()
+        base = settings.backend_base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
-                "http://localhost:3000/v1/applications",
+                f"{base}/applications",
                 json={"user_id": user_id, "type": app_type},
             )
             if resp.status_code < 400:
@@ -433,8 +437,11 @@ async def _api_submit_behavioral(app_id: str, user_id: str, answers: list) -> bo
                 for a in answers
             ],
         }
+        # Call ourselves (AI service behavioral submit)
+        settings = get_settings()
+        ai_base = f"http://localhost:{settings.ai_service_port}"
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post("http://localhost:8001/behavioral/submit", json=payload)
+            resp = await client.post(f"{ai_base}/behavioral/submit", json=payload)
             return resp.status_code < 400
     except Exception as exc:
         logger.warning("POST behavioral/submit failed (non-fatal): %s", exc)
@@ -443,10 +450,10 @@ async def _api_submit_behavioral(app_id: str, user_id: str, answers: list) -> bo
 
 async def _api_get_app_status(app_id: str) -> Optional[str]:
     try:
+        settings = get_settings()
+        base = settings.backend_base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"http://localhost:3000/v1/applications/{app_id}/status"
-            )
+            resp = await client.get(f"{base}/applications/{app_id}/status")
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("status") or data.get("phase")
@@ -457,8 +464,10 @@ async def _api_get_app_status(app_id: str) -> Optional[str]:
 
 async def _api_get_eligibility(app_id: str) -> Optional[dict]:
     try:
+        settings = get_settings()
+        base = settings.backend_base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"http://localhost:3000/v1/eligibility/{app_id}")
+            resp = await client.get(f"{base}/eligibility/{app_id}")
             if resp.status_code == 200:
                 return resp.json()
     except Exception as exc:
@@ -468,10 +477,10 @@ async def _api_get_eligibility(app_id: str) -> Optional[dict]:
 
 async def _api_get_disbursal(app_id: str) -> Optional[dict]:
     try:
+        settings = get_settings()
+        base = settings.backend_base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"http://localhost:3000/v1/disbursal/{app_id}/schedule"
-            )
+            resp = await client.get(f"{base}/disbursal/{app_id}/schedule")
             if resp.status_code == 200:
                 return resp.json()
     except Exception as exc:

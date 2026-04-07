@@ -5,18 +5,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
 
 var kafkaBroker string
+var kafkaWriters = map[string]*kafka.Writer{}
+var kafkaWritersMu sync.RWMutex
 
 func init() {
 	kafkaBroker = fmt.Sprintf("%s:%s",
 		getEnv("KAFKA_HOST", "localhost"),
 		getEnv("KAFKA_PORT", "9092"),
 	)
+}
+
+func getKafkaWriter(topic string) *kafka.Writer {
+	kafkaWritersMu.RLock()
+	w, ok := kafkaWriters[topic]
+	kafkaWritersMu.RUnlock()
+	if ok {
+		return w
+	}
+	kafkaWritersMu.Lock()
+	defer kafkaWritersMu.Unlock()
+	w = kafka.NewWriter(kafka.WriterConfig{
+		Brokers:      []string{kafkaBroker},
+		Topic:        topic,
+		Balancer:     &kafka.LeastBytes{},
+		WriteTimeout: 5 * time.Second,
+	})
+	kafkaWriters[topic] = w
+	return w
 }
 
 func PublishKafkaEvent(topic string, payload interface{}) {
@@ -26,14 +48,7 @@ func PublishKafkaEvent(topic string, payload interface{}) {
 		return
 	}
 
-	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{kafkaBroker},
-		Topic:        topic,
-		Balancer:     &kafka.LeastBytes{},
-		WriteTimeout: 5 * time.Second,
-	})
-	defer w.Close()
-
+	w := getKafkaWriter(topic)
 	err = w.WriteMessages(context.Background(), kafka.Message{
 		Key:   []byte(fmt.Sprintf("%d", time.Now().UnixNano())),
 		Value: data,

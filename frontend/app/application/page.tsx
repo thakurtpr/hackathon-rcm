@@ -15,7 +15,8 @@ import {
   ChevronRight, 
   ChevronLeft,
   CheckCircle2,
-  BrainCircuit
+  BrainCircuit,
+  ArrowRight
 } from 'lucide-react';
 
 const applicationSchema = z.object({

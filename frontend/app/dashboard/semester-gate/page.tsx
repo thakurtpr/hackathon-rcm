@@ -206,10 +206,10 @@ export default function SemesterGatePage() {
 
                  <div className="flex gap-4 w-full">
                     <Button 
-                      asChild
+                      onClick={() => window.location.href = '/dashboard'}
                       className="flex-1 bg-white hover:bg-gray-100 text-gray-950 font-black py-6 rounded-2xl shadow-xl transition-all"
                     >
-                      <Link href="/dashboard">Back to Dashboard</Link>
+                      Back to Dashboard
                     </Button>
                  </div>
               </div>
