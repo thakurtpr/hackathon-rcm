@@ -14,8 +14,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     groq_api_key: str = "gsk_xxxx"
+    groq_model: str = "llama-3.3-70b-versatile"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5-coder:7b"
+    ollama_model: str = "gemma4:31b"
     backend_base_url: str = "http://localhost:8000"
     ai_service_port: int = 8001
     kafka_brokers: str = "localhost:9092"
@@ -79,7 +80,7 @@ class Settings(BaseSettings):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         kwargs: dict = {
-            "model": "llama-3-70b-8192",
+            "model": self.groq_model,
             "messages": messages,
             "max_tokens": max_tokens,
         }
