@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore, type OnboardingData } from '@/store/onboardingStore';
+import { useIntentStore } from '@/store/intentStore';
+import { useApplicationStore } from '@/store/applicationStore';
 import ChatBubble from '@/components/onboarding/ChatBubble';
 import ChatInputBar, { type InputType } from '@/components/onboarding/ChatInputBar';
 import { Loader2, Sparkles } from 'lucide-react';
@@ -45,6 +47,8 @@ interface Message {
 export default function OnboardingPage() {
   const router = useRouter();
   const { currentStep, data, setAnswer, nextStep } = useOnboardingStore();
+  const { intent } = useIntentStore();
+  const { setApplicationId } = useApplicationStore();
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -64,6 +68,14 @@ export default function OnboardingPage() {
 
   // Initial bot message and subsequent questions
   useEffect(() => {
+    // Skip logic for Scholarship intent
+    if (intent === 'scholarship') {
+      if (currentStep === 6 || currentStep === 10) {
+        nextStep();
+        return;
+      }
+    }
+
     const question = ONBOARDING_QUESTIONS.find((q) => q.id === currentStep);
     
     if (!question) return;
@@ -159,10 +171,11 @@ export default function OnboardingPage() {
         await new Promise(resolve => setTimeout(resolve, 1500)); // updateProfile
         console.log('Profile updated with:', data);
         
-        await new Promise(resolve => setTimeout(resolve, 1000)); // createApplication
-        console.log('Application created');
-
         // Success
+        const newAppId = 'APP-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+        setApplicationId(newAppId);
+        console.log('Application ID generated:', newAppId);
+
         addBotMessage("Excellent! Your application is ready. Redirecting to verification...");
         
         setTimeout(() => {

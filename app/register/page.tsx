@@ -55,22 +55,22 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] dark:bg-zinc-950 p-4 font-sans selection:bg-indigo-100 selection:text-indigo-700">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/50 via-transparent to-transparent pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-sky-50/50 via-transparent to-transparent pointer-events-none" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans selection:bg-indigo-500/30">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-sky-500/5 via-transparent to-transparent pointer-events-none" />
       
       <div className="w-full max-w-lg relative">
         {/* Card */}
-        <div className="bg-white dark:bg-zinc-900 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-zinc-200/50 dark:border-zinc-800 rounded-3xl overflow-hidden backdrop-blur-sm">
+        <div className="bg-gray-900 shadow-2xl border border-gray-800 rounded-3xl overflow-hidden backdrop-blur-sm">
           <div className="p-8 pb-4">
-            <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">Create Your Account</h2>
-            <p className="mt-2 text-zinc-500 dark:text-zinc-400 font-medium">Join our AI-powered student loan platform today.</p>
+            <h2 className="text-3xl font-bold text-white tracking-tight">Create Your Account</h2>
+            <p className="mt-2 text-gray-400 font-medium">Join our AI-powered student loan platform today.</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="p-8 pt-4 space-y-5">
             {/* Full Name */}
             <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 ml-1">Full Name</label>
+              <label className="text-sm font-semibold text-gray-300 ml-1">Full Name</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <User className="h-4 w-4 text-zinc-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -79,7 +79,7 @@ export default function RegisterPage() {
                   {...register('fullName')}
                   type="text"
                   placeholder="John Doe"
-                  className={`block w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 ${errors.fullName ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                  className={`block w-full pl-10 pr-4 py-3 rounded-xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 ${errors.fullName ? 'border-red-500/50 ring-red-500/10' : ''}`}
                 />
               </div>
               {errors.fullName && <p className="text-xs font-medium text-red-500 mt-1 ml-1">{errors.fullName.message}</p>}
@@ -113,7 +113,7 @@ export default function RegisterPage() {
                   <input
                     {...register('dob')}
                     type="date"
-                    className={`block w-full pl-10 pr-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 ${errors.dob ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                    className={`block w-full pl-10 pr-4 py-3 rounded-xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 ${errors.dob ? 'border-red-500/50 ring-red-500/10' : ''}`}
                   />
                 </div>
                 {errors.dob && <p className="text-xs font-medium text-red-500 mt-1 ml-1">{errors.dob.message}</p>}
@@ -191,11 +191,11 @@ export default function RegisterPage() {
           </form>
 
           <div className="p-8 pt-2 text-center">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">
+            <p className="text-sm text-gray-400 font-medium">
               Already have an account?{' '}
               <Link
                 href="/login"
-                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition-colors decoration-2 underline-offset-4"
+                className="text-indigo-400 hover:text-indigo-300 hover:underline transition-colors decoration-2 underline-offset-4"
               >
                 Log In
               </Link>

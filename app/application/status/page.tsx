@@ -78,13 +78,13 @@ const PipelineStage = ({
 
 export default function StatusPage() {
   const router = useRouter();
-  const { pipelineStages, webSocketStatus, updateStageStatus } = useApplicationStore();
+  const { pipelineStages, webSocketStatus, updateStageStatus, applicationId } = useApplicationStore();
   
   // Find the first pending stage to mark it as active
   const firstPendingId = pipelineStages.find(s => s.status === 'pending')?.id;
 
-  // Connect to the WebSocket (dummy ID as per requirement)
-  const startPolling = useApplicationStatusSocket('DUMMY_APP_ID_123');
+  // Connect to the WebSocket (using generated ID)
+  const startPolling = useApplicationStatusSocket(applicationId || 'DUMMY_APP_ID_123');
 
   // Simulation effect setup
   useEffect(() => {
