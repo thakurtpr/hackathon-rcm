@@ -26,7 +26,7 @@ interface DocumentCardProps {
   fileName: string | null
   error: string | null
   onFileSelect: (file: File) => void
-  onOpenCamera: () => void
+  onOpenCamera?: () => void
 }
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
@@ -57,7 +57,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const isSelfie = docType.toLowerCase().includes("selfie")
 
   return (
-    <Card className="w-full bg-zinc-900 border-zinc-800 text-zinc-100 overflow-hidden transition-all duration-300 hover:border-zinc-700 shadow-xl">
+    <Card className="w-full bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-800 text-gray-900 dark:text-zinc-100 overflow-hidden transition-all duration-300 hover:border-indigo-300 dark:hover:border-zinc-700 shadow-sm dark:shadow-xl transition-colors">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-medium flex items-center gap-2">
@@ -95,20 +95,20 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             {status === "pending" && (
               <div
                 {...getRootProps()}
-                className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors duration-200 ${
+                className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
                   isDragActive
-                    ? "border-indigo-500 bg-indigo-500/5"
-                    : "border-zinc-800 hover:border-zinc-700 bg-zinc-950/50"
+                    ? "border-indigo-600 dark:border-indigo-500 bg-indigo-50 dark:bg-indigo-500/5"
+                    : "border-gray-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-zinc-700 bg-gray-50 dark:bg-zinc-950/50"
                 }`}
               >
                 <input {...getInputProps()} />
-                <div className="p-3 bg-zinc-800 rounded-full mb-3">
-                  <UploadCloud className="h-6 w-6 text-zinc-400" />
+                <div className="p-3 bg-gray-100 dark:bg-zinc-800 rounded-full mb-3 transition-colors">
+                  <UploadCloud className="h-6 w-6 text-gray-500 dark:text-zinc-400" />
                 </div>
-                <p className="text-sm font-medium">
+                <p className="text-sm font-medium text-gray-700 dark:text-zinc-200 transition-colors">
                   {isDragActive ? "Drop the file here" : "Drag & drop or click to upload"}
                 </p>
-                <p className="text-xs text-zinc-500 mt-1">
+                <p className="text-xs text-gray-400 dark:text-zinc-500 mt-1 transition-colors">
                   Supported: {Object.values(acceptedFiles).flat().join(", ") || "JPG, PNG, PDF"}
                 </p>
               </div>

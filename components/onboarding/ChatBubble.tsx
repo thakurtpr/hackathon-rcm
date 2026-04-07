@@ -41,9 +41,9 @@ export default function ChatBubble({ message }: ChatBubbleProps) {
 
       <div
         className={cn(
-          'max-w-[80%] rounded-2xl p-4 shadow-xl backdrop-blur-md border border-white/10',
+          'max-w-[80%] rounded-2xl p-4 shadow-xl backdrop-blur-md border border-gray-200 dark:border-white/10',
           isBot
-            ? 'bg-white/10 text-white rounded-tl-none'
+            ? 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white rounded-tl-none'
             : 'bg-indigo-600 text-white rounded-tr-none'
         )}
       >

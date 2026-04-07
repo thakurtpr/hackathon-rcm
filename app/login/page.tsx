@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { Loader2, Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
+import { signIn } from 'next-auth/react';
 
 // --- Zod Schema ---
 const loginSchema = z.object({
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -33,19 +35,40 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
-    console.log('Login attempt:', data.email);
-    
-    // Simulate API call with a 1.5-second delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Success: Set store state
-    login('dummy-jwt-token-123', { id: 'USR-01', name: data.email.split('@')[0] });
-    
-    router.push('/onboarding');
+    try {
+      const result = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (result?.ok) {
+        // Sync with Zustand if needed
+        login('next-auth-token', { id: 'USR-01', name: data.email.split('@')[0] });
+
+        if (data.email === 'admin@gmail.com') {
+          router.push('/admin/dashboard');
+        } else if (data.email === 'user@gmail.com') {
+          router.push('/dashboard');
+        } else {
+          // Default redirection for other authenticated users
+          router.push('/dashboard');
+        }
+      } else {
+        // Show informative error for demo purposes
+        alert('Invalid credentials. Use admin/admin or user/user for the demo.');
+        setError('root', { 
+          message: 'Invalid credentials. Use admin/admin or user/user for the demo.' 
+        });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('An unexpected error occurred. Please try again.');
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4 font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950 p-4 font-sans selection:bg-indigo-500/30 transition-colors duration-500">
       {/* Background Orbs for Rich Aesthetics */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[10%] left-[20%] w-[40rem] h-[40rem] bg-indigo-200/20 dark:bg-indigo-900/10 rounded-full blur-[120px] animate-pulse" />
@@ -54,31 +77,31 @@ export default function LoginPage() {
 
       <div className="w-full max-w-lg relative">
         {/* Card Container */}
-        <div className="bg-gray-900 border border-gray-800 rounded-[2.5rem] overflow-hidden backdrop-blur-xl shadow-2xl">
+        <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-[2.5rem] overflow-hidden backdrop-blur-xl shadow-2xl dark:shadow-none transition-colors duration-500">
           {/* Header Section */}
           <div className="p-8 pb-4 text-center">
             <div className="mx-auto w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/20">
-              <LogIn className="h-8 w-8 text-indigo-400" />
+              <LogIn className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <h2 className="text-4xl font-bold text-white tracking-tight">Welcome Back</h2>
-            <p className="mt-3 text-gray-400 font-medium">Please enter your details to sign in</p>
+            <h2 className="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome Back</h2>
+            <p className="mt-3 text-gray-500 dark:text-gray-400 font-medium">Please enter your details to sign in</p>
           </div>
 
           {/* Form Section */}
           <form onSubmit={handleSubmit(onSubmit)} className="p-8 pt-4 space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300 ml-1">Email Address</label>
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 ml-1">Email Address</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-zinc-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                  <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors duration-200" />
                 </div>
                 <input
                   {...register('email')}
                   type="email"
                   placeholder="name@email.com"
                   autoComplete="email"
-                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all duration-300 ${errors.email ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/50 text-gray-950 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:focus:ring-indigo-500/10 focus:border-indigo-500/50 dark:focus:border-indigo-500/50 transition-all duration-300 ${errors.email ? 'border-red-500/50 ring-red-500/10' : ''}`}
                 />
               </div>
               {errors.email && <p className="text-xs font-medium text-red-500 mt-1.5 ml-1">{errors.email.message}</p>}
@@ -87,21 +110,21 @@ export default function LoginPage() {
             {/* Password Field */}
             <div className="space-y-2">
               <div className="flex items-center justify-between ml-1">
-                <label className="text-sm font-semibold text-gray-300">Password</label>
-                <Link href="#" className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Password</label>
+                <Link href="#" className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 transition-colors">
                   Forgot Password?
                 </Link>
               </div>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-zinc-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                  <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 dark:group-focus-within:text-indigo-400 transition-colors duration-200" />
                 </div>
                 <input
                   {...register('password')}
                   type="password"
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all duration-300 ${errors.password ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/50 text-gray-950 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:focus:ring-indigo-500/10 focus:border-indigo-500/50 dark:focus:border-indigo-500/50 transition-all duration-300 ${errors.password ? 'border-red-500/50 ring-red-500/10' : ''}`}
                 />
               </div>
               {errors.password && <p className="text-xs font-medium text-red-500 mt-1.5 ml-1">{errors.password.message}</p>}
@@ -137,18 +160,18 @@ export default function LoginPage() {
           <div className="p-8 pt-0 text-center">
             <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-800"></div>
+                <div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-gray-900 px-4 text-gray-500 font-bold tracking-widest">Or</span>
+                <span className="bg-gray-50 dark:bg-gray-900 px-4 text-gray-500 dark:text-gray-500 font-bold tracking-widest">Or</span>
               </div>
             </div>
 
-            <p className="text-sm text-gray-400 font-medium">
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
               Don't have an account?{' '}
               <Link
                 href="/register"
-                className="text-indigo-400 hover:text-indigo-300 font-bold hover:underline transition-all decoration-2 underline-offset-4"
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 font-bold hover:underline transition-all decoration-2 underline-offset-4"
               >
                 Sign Up
               </Link>

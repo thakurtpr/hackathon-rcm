@@ -63,7 +63,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={inputType === 'pan' ? 'ABCDE1234F' : inputType === 'aadhaar' ? '1234 5678 9012' : "Type here..."}
               disabled={isProcessing}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md transition-all shadow-lg"
+              className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md transition-all shadow-lg"
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             />
             <button
@@ -85,7 +85,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Enter amount/year..."
               disabled={isProcessing}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md transition-all shadow-lg"
+              className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md transition-all shadow-lg"
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             />
             <button
@@ -106,7 +106,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
                 key={band}
                 disabled={isProcessing}
                 onClick={() => onReply(band)}
-                className="bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white border border-white/10 rounded-full px-6 py-2 transition-all hover:scale-105 active:scale-95 shadow-md backdrop-blur-sm"
+                className="bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 disabled:opacity-50 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 rounded-full px-6 py-2 transition-all hover:scale-105 active:scale-95 shadow-md backdrop-blur-sm"
               >
                 {band}
               </button>
@@ -127,7 +127,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
             <button
               disabled={isProcessing}
               onClick={() => onReply(false, 'No')}
-              className="bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white border border-white/10 rounded-xl px-8 py-3 transition-all hover:scale-105 active:scale-95 shadow-lg backdrop-blur-sm"
+              className="bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 disabled:opacity-50 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 rounded-xl px-8 py-3 transition-all hover:scale-105 active:scale-95 shadow-lg backdrop-blur-sm"
             >
               No
             </button>
@@ -138,8 +138,8 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
         return (
           <div className="w-full flex flex-col gap-4 p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md shadow-2xl">
              <div className="flex justify-between items-center px-2">
-                <span className="text-white/60 text-sm font-medium uppercase tracking-wider">Requested Range</span>
-                <span className="text-2xl font-bold bg-gradient-to-r from-indigo-300 to-purple-300 bg-clip-text text-transparent">₹ {inputValue || 1} Lakh</span>
+                <span className="text-gray-500 dark:text-white/60 text-sm font-medium uppercase tracking-wider">Requested Range</span>
+                <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-300 dark:to-purple-300 bg-clip-text text-transparent transition-colors">₹ {inputValue || 1} Lakh</span>
              </div>
              <input
                type="range"
@@ -165,8 +165,8 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
         return (
           <div className="w-full flex flex-col gap-3 p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md shadow-2xl">
             <div className="flex items-center gap-2 mb-1">
-              <Info size={16} className="text-indigo-400" />
-              <p className="text-xs text-white/50 uppercase font-semibold">Bank Information Security Tier</p>
+              <Info size={16} className="text-indigo-600 dark:text-indigo-400" />
+              <p className="text-xs text-gray-500 dark:text-white/50 uppercase font-semibold">Bank Information Security Tier</p>
             </div>
             <input
               type="text"
@@ -174,7 +174,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
               disabled={isProcessing}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value.toUpperCase())}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md"
+              className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md transition-colors"
             />
             <input
               type="text"
@@ -182,7 +182,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
               disabled={isProcessing}
               value={extraValue}
               onChange={(e) => setExtraValue(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md"
+              className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 backdrop-blur-md transition-colors"
             />
             <button
               onClick={handleSend}
@@ -204,7 +204,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
              >
                <CheckCircle size={24} /> Submit Application
              </button>
-             <p className="text-center text-white/40 text-xs px-4">
+             <p className="text-center text-gray-400 dark:text-white/40 text-xs px-4">
                 By submitting, you agree to our terms of service and allow us to verify your provided information.
              </p>
           </div>
@@ -217,7 +217,7 @@ export default function ChatInputBar({ inputType, onReply, isProcessing }: ChatI
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 flex justify-center items-end bg-gradient-to-t from-[#0a0a1a] via-[#0a0a1a]/80 to-transparent pt-12">
+    <div className="w-full max-w-4xl mx-auto p-4 flex justify-center items-end bg-gradient-to-t from-white dark:from-[#0a0a1a] via-white/80 dark:via-[#0a0a1a]/80 to-transparent pt-12 transition-colors">
       <AnimatePresence mode="wait">
         <motion.div
            key={inputType}

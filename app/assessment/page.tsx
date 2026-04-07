@@ -64,7 +64,7 @@ export default function AssessmentPage() {
 
   // 5. Safe Rendering
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white flex flex-col items-center justify-center p-4 transition-colors duration-500">
       {/* Loading states */}
       {(status === 'loading' || questions.length === 0) && (
         <div className="flex flex-col items-center gap-4">

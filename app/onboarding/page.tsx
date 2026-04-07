@@ -96,12 +96,12 @@ export default function OnboardingPage() {
           addBotMessage(
             <div className="space-y-3">
               <p>{question.text}</p>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm space-y-2 max-w-sm">
-                <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Course:</span> <span>{data.course}</span></div>
-                <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Inst:</span> <span>{data.institution}</span></div>
-                <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Grad Year:</span> <span>{data.year}</span></div>
-                <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Exam Score:</span> <span>{data.lastExamScore}%</span></div>
-                <div className="flex justify-between border-b border-white/5 pb-1"><span className="text-white/50">Loan Amt:</span> <span>₹{data.loanAmount} Lakh</span></div>
+              <div className="bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-4 text-sm space-y-2 max-w-sm shadow-sm dark:shadow-none">
+                <div className="flex justify-between border-b border-gray-200 dark:border-white/5 pb-1"><span className="text-gray-500 dark:text-white/50">Course:</span> <span className="text-gray-900 dark:text-white">{data.course}</span></div>
+                <div className="flex justify-between border-b border-gray-200 dark:border-white/5 pb-1"><span className="text-gray-500 dark:text-white/50">Inst:</span> <span className="text-gray-900 dark:text-white">{data.institution}</span></div>
+                <div className="flex justify-between border-b border-gray-200 dark:border-white/5 pb-1"><span className="text-gray-500 dark:text-white/50">Grad Year:</span> <span className="text-gray-900 dark:text-white">{data.year}</span></div>
+                <div className="flex justify-between border-b border-gray-200 dark:border-white/5 pb-1"><span className="text-gray-500 dark:text-white/50">Exam Score:</span> <span className="text-gray-900 dark:text-white">{data.lastExamScore}%</span></div>
+                <div className="flex justify-between border-b border-gray-200 dark:border-white/5 pb-1"><span className="text-gray-500 dark:text-white/50">Loan Amt:</span> <span className="text-gray-900 dark:text-white">₹{data.loanAmount} Lakh</span></div>
               </div>
             </div>
           );
@@ -190,17 +190,17 @@ export default function OnboardingPage() {
   const currentQuestion = ONBOARDING_QUESTIONS.find((q) => q.id === currentStep);
 
   return (
-    <main className="flex flex-col h-screen bg-[#070714] text-white font-sans selection:bg-indigo-500/30 overflow-hidden">
+    <main className="flex flex-col h-screen bg-white dark:bg-[#070714] text-gray-900 dark:text-white font-sans selection:bg-indigo-500/30 overflow-hidden transition-colors duration-500">
       {/* Header */}
-      <header className="shrink-0 h-16 border-b border-white/5 flex items-center px-6 justify-between bg-[#070714]/60 backdrop-blur-xl z-20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+      <header className="shrink-0 h-16 border-b border-gray-200 dark:border-white/5 flex items-center px-6 justify-between bg-white/60 dark:bg-[#070714]/60 backdrop-blur-xl z-20 shadow-sm dark:shadow-[0_4px_30px_rgba(0,0,0,0.5)] transition-colors">
         <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
                 <Sparkles size={18} className="text-white" />
             </div>
-            <h1 className="font-bold text-lg tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">AI Assistant</h1>
+            <h1 className="font-bold text-lg tracking-tight bg-gradient-to-r from-gray-900 to-gray-500 dark:from-white dark:to-white/60 bg-clip-text text-transparent transition-colors">AI Assistant</h1>
         </div>
         <div className="flex items-center gap-4">
-            <span className="text-[10px] uppercase font-bold text-white/40 tracking-widest border border-white/10 rounded-full px-3 py-1 bg-white/5">Step {currentStep} of {ONBOARDING_QUESTIONS.length}</span>
+            <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-white/40 tracking-widest border border-gray-200 dark:border-white/10 rounded-full px-3 py-1 bg-gray-100 dark:bg-white/5 transition-colors">Step {currentStep} of {ONBOARDING_QUESTIONS.length}</span>
         </div>
       </header>
 
@@ -218,11 +218,11 @@ export default function OnboardingPage() {
                 <motion.div
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex gap-2 p-4 bg-white/5 border border-white/10 rounded-2xl w-24 items-center justify-center h-12 shadow-inner"
+                    className="flex gap-2 p-4 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl w-24 items-center justify-center h-12 shadow-sm"
                 >
-                    <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                    <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                    <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-pink-400" />
+                    <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1.5 h-1.5 rounded-full bg-indigo-500/60 dark:bg-indigo-400" />
+                    <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-purple-500/60 dark:bg-purple-400" />
+                    <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-pink-500/60 dark:bg-pink-400" />
                 </motion.div>
             )}
         </div>

@@ -21,8 +21,8 @@
   --color-surface-variant: #dae2fd;
   --color-on-surface-variant: #434656;
   
-  --color-background: #faf8ff;
-  --color-on-background: #131b2e;
+  --color-background: hsl(var(--background));
+  --color-on-background: hsl(var(--foreground));
   
   --color-outline: #737688;
   --color-outline-variant: #c3c5d9;
@@ -33,20 +33,20 @@
 }
 
 :root {
-  --background: #030712; /* gray-950 */
-  --foreground: #f9fafb; /* gray-50 */
+  --background: 250 100% 99%; /* #faf8ff equivalent in HSL or just use hex if needed */
+  --foreground: 222 47% 11%;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --background: #faf8ff;
-    --foreground: #131b2e;
-  }
+.dark {
+  --background: 222 47% 4%; /* #030712 equivalent */
+  --foreground: 210 40% 98%;
 }
+
+@variant dark (&:where(.dark, .dark *));
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
   font-family: var(--font-sans);
 }
 

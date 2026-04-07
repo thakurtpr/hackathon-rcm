@@ -51,7 +51,7 @@ const applicantData = {
 const FraudGauge = ({ risk }: { risk: number }) => {
   const data = [
     { name: 'Risk', value: risk, fill: '#ef4444' }, // Red-500
-    { name: 'Remaining', value: 100 - risk, fill: '#374151' }, // Gray-700
+    { name: 'Remaining', value: 100 - risk, fill: '#e5e7eb' }, // Gray-200 (light mode) or handled by theme?
   ];
 
   return (
@@ -70,15 +70,14 @@ const FraudGauge = ({ risk }: { risk: number }) => {
             dataKey="value"
             stroke="none"
           >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
+            <Cell fill="#ef4444" />
+            <Cell className="fill-gray-200 dark:fill-gray-800 transition-colors" />
           </Pie>
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute bottom-6 flex flex-col items-center">
-        <span className="text-3xl font-bold text-red-500">{risk}%</span>
-        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Fraud Risk</span>
+        <span className="text-3xl font-bold text-red-600 dark:text-red-500 transition-colors">{risk}%</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider transition-colors">Fraud Risk</span>
       </div>
     </div>
   );
@@ -97,7 +96,7 @@ const PQVisual = ({ score }: { score: number }) => {
             stroke="currentColor"
             strokeWidth="10"
             fill="transparent"
-            className="text-gray-800"
+            className="text-gray-100 dark:text-gray-800 transition-colors"
           />
           <circle
             cx="80"
@@ -108,13 +107,13 @@ const PQVisual = ({ score }: { score: number }) => {
             fill="transparent"
             strokeDasharray={440}
             strokeDashoffset={440 - (440 * score) / 100}
-            className="text-indigo-500 transition-all duration-1000 ease-out"
+            className="text-indigo-600 dark:text-indigo-500 transition-all duration-1000 ease-out"
             strokeLinecap="round"
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-4xl font-black text-indigo-400">{score}</span>
-          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-[0.2em]">PQ SCORE</span>
+          <span className="text-4xl font-black text-indigo-700 dark:text-indigo-400 transition-colors">{score}</span>
+          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-[0.2em] transition-colors">PQ SCORE</span>
         </div>
       </div>
     </div>
@@ -122,7 +121,7 @@ const PQVisual = ({ score }: { score: number }) => {
 };
 
 const StatusBadge = ({ children }: { children: React.ReactNode }) => (
-  <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 rounded-full animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.1)]">
+  <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20 rounded-full animate-pulse shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.1)] transition-colors">
     {children}
   </span>
 );
@@ -132,42 +131,42 @@ export default function ApplicationReviewPage() {
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
       {/* Header Polish */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-800/50">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-gray-200 dark:border-gray-800/50 transition-colors">
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-gray-500 text-sm font-medium">
-             <Link href="/admin/applications" className="hover:text-indigo-400 transition-colors flex items-center gap-1">
+          <div className="flex items-center gap-2 text-gray-500 text-sm font-medium transition-colors">
+             <Link href="/admin/applications" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center gap-1">
                <ArrowLeft size={14} /> Back to Queue
              </Link>
              <span>•</span>
              <span>Ref: {applicantData.id}</span>
           </div>
           <div className="flex items-center gap-4">
-            <h1 className="text-4xl font-black tracking-tight text-white">{applicantData.name}</h1>
+            <h1 className="text-4xl font-black tracking-tight text-gray-900 dark:text-white transition-colors">{applicantData.name}</h1>
             <StatusBadge>{applicantData.status}</StatusBadge>
           </div>
         </div>
         <div className="flex items-center gap-3">
-           <Button variant="outline" className="border-gray-800 bg-gray-900/50 hover:bg-gray-800 text-gray-400 gap-2">
+           <Button variant="outline" className="border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 gap-2 transition-colors">
              <Search size={16} /> Look up History
            </Button>
-           <Button variant="outline" className="border-gray-800 bg-gray-900/50 hover:bg-gray-800 text-gray-400">
+           <Button variant="outline" className="border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors">
              <ExternalLink size={16} />
            </Button>
         </div>
       </header>
 
       {/* Main Analysis Card */}
-      <Card className="bg-gray-950/50 border-gray-800 shadow-2xl backdrop-blur-xl overflow-hidden">
-        <CardHeader className="border-b border-gray-800/50 bg-gray-900/10 px-8 py-6">
+      <Card className="bg-white dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 shadow-xl dark:shadow-none backdrop-blur-xl overflow-hidden transition-colors">
+        <CardHeader className="border-b border-gray-200 dark:border-gray-800/50 bg-gray-50 dark:bg-gray-900/10 px-8 py-6 transition-colors">
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle className="text-xl font-bold flex items-center gap-2">
-                <Zap size={20} className="text-indigo-400 fill-indigo-400/20" />
+              <CardTitle className="text-xl font-bold flex items-center gap-2 text-gray-900 dark:text-white transition-colors">
+                <Zap size={20} className="text-indigo-600 dark:text-indigo-400 fill-indigo-600/10 dark:fill-indigo-400/20" />
                 AI Risk & Potential Analysis
               </CardTitle>
-              <CardDescription className="text-gray-500 font-medium">Combined forensic and behavioral score engine</CardDescription>
+              <CardDescription className="text-gray-500 font-medium transition-colors">Combined forensic and behavioral score engine</CardDescription>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold">
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 rounded-lg text-xs font-bold transition-colors">
               <ShieldAlert size={14} />
               Forensics Active
             </div>
@@ -179,19 +178,19 @@ export default function ApplicationReviewPage() {
             
             {/* Left Side: Fraud Risk */}
             <div className="space-y-6">
-              <div className="flex items-center gap-2 text-sm font-bold text-red-500 uppercase tracking-widest">
+              <div className="flex items-center gap-2 text-sm font-bold text-red-600 dark:text-red-500 uppercase tracking-widest transition-colors">
                  <Lock size={14} />
                  Fraud Confidence
               </div>
               <FraudGauge risk={applicantData.aiInsights.fraudRiskScore} />
-              <div className="space-y-3 bg-red-500/5 border border-red-500/10 p-5 rounded-2xl">
-                <h4 className="text-xs font-black text-red-400/80 uppercase flex items-center gap-2">
+              <div className="space-y-3 bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/10 p-5 rounded-2xl transition-colors">
+                <h4 className="text-xs font-black text-red-600 dark:text-red-400/80 uppercase flex items-center gap-2 transition-colors">
                   <AlertTriangle size={14} />
                   AI Reasoning Checklist
                 </h4>
                 <ul className="space-y-2.5">
                   {applicantData.aiInsights.fraudReasons.map((reason, i) => (
-                    <li key={i} className="flex gap-3 text-sm text-gray-300 items-start leading-relaxed group">
+                    <li key={i} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300 items-start leading-relaxed group transition-colors">
                       <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 shrink-0 group-hover:scale-125 transition-transform" />
                       {reason}
                     </li>
@@ -203,24 +202,24 @@ export default function ApplicationReviewPage() {
             {/* Right Side: PQ Analysis */}
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-bold text-indigo-400 uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest transition-colors">
                    <Activity size={14} />
                    Applicant Potential
                 </div>
-                <div className="text-[10px] font-black text-emerald-400 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded uppercase">
+                <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded uppercase transition-colors">
                    High Probability
                 </div>
               </div>
               <PQVisual score={applicantData.aiInsights.pqScore} />
-              <div className="space-y-4 bg-indigo-500/5 border border-indigo-500/10 p-5 rounded-2xl">
-                <h4 className="text-xs font-black text-indigo-400 uppercase flex items-center gap-2">
+              <div className="space-y-4 bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-200 dark:border-indigo-500/10 p-5 rounded-2xl transition-colors">
+                <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase flex items-center gap-2 transition-colors">
                   <ThumbsUp size={14} />
                   Behavioral Summary
                 </h4>
-                <p className="text-sm text-gray-300 font-medium leading-relaxed italic">
+                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium leading-relaxed italic transition-colors">
                   "{applicantData.aiInsights.pqSummary}"
                 </p>
-                <div className="pt-2 flex items-center gap-2 text-xs text-gray-500">
+                <div className="pt-2 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 transition-colors">
                   <Info size={12} />
                   Comparison to regional baseline: +22%
                 </div>
@@ -229,19 +228,19 @@ export default function ApplicationReviewPage() {
           </div>
           
           {/* Action Area Component inside Card Content */}
-          <div className="mt-12 pt-8 border-t border-gray-800/50">
+          <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800/50 transition-colors">
              <div className="flex flex-col md:flex-row items-center gap-4 justify-center">
                 <Button className="w-full md:w-auto px-8 h-12 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all active:scale-95 text-base">
                    Approve (Override Flags)
                 </Button>
-                <Button className="w-full md:w-auto px-8 h-12 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl border border-gray-700 transition-all active:scale-95 text-base">
+                <Button className="w-full md:w-auto px-8 h-12 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-bold rounded-xl border border-gray-200 dark:border-gray-700 transition-all active:scale-95 text-base">
                    Request Manual Interview
                 </Button>
-                <Button variant="destructive" className="w-full md:w-auto px-8 h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-900/20 transition-all active:scale-95 text-base">
+                <Button variant="destructive" className="w-full md:w-auto px-8 h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-900/20 transition-all active:scale-95 text-base border-none">
                    Reject (Confirm Fraud)
                 </Button>
              </div>
-             <p className="text-center text-[10px] text-gray-600 mt-4 uppercase font-bold tracking-widest">
+             <p className="text-center text-[10px] text-gray-400 dark:text-gray-600 mt-4 uppercase font-bold tracking-widest transition-colors">
                 All actions are logged & audited for compliance reasons
              </p>
           </div>
@@ -249,27 +248,27 @@ export default function ApplicationReviewPage() {
       </Card>
 
       {/* Audit Trail Redesign */}
-      <Card className="bg-transparent border-gray-800/50">
+      <Card className="bg-transparent border-gray-200 dark:border-gray-800/50 transition-colors">
         <CardHeader className="py-4">
-          <CardTitle className="text-sm font-bold flex items-center gap-2 text-gray-400 uppercase tracking-widest leading-none">
+          <CardTitle className="text-sm font-bold flex items-center gap-2 text-gray-400 dark:text-gray-400 uppercase tracking-widest leading-none transition-colors">
             <Activity size={14} />
             System Event Log
           </CardTitle>
         </CardHeader>
         <CardContent className="px-6 pb-6">
-          <div className="h-40 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+          <div className="h-40 overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800 scrollbar-track-transparent transition-colors">
             <div className="space-y-4">
               {applicantData.systemLog.map((log, i) => (
-                <div key={i} className="flex justify-between items-center text-xs py-2 border-b border-gray-800 last:border-0 border-dashed">
+                <div key={i} className="flex justify-between items-center text-xs py-2 border-b border-gray-100 dark:border-gray-800 last:border-0 border-dashed transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className="text-gray-500 font-mono w-16">{log.time}</span>
-                    <span className="text-gray-300 font-medium">{log.event}</span>
+                    <span className="text-gray-400 dark:text-gray-500 font-mono w-16 transition-colors">{log.time}</span>
+                    <span className="text-gray-700 dark:text-gray-300 font-medium transition-colors">{log.event}</span>
                   </div>
-                  <div className={`w-1.5 h-1.5 rounded-full ${
+                  <div className={`w-1.5 h-1.5 rounded-full transition-all ${
                     log.type === 'error' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 
                     log.type === 'warning' ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 
                     log.type === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 
-                    'bg-gray-600'
+                    'bg-gray-300 dark:bg-gray-600'
                   }`} />
                 </div>
               ))}

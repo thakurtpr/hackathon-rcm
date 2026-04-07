@@ -24,37 +24,37 @@ export default function KYCPage() {
     { 
       id: 'aadhaar' as DocumentType, 
       name: 'Aadhaar Card', 
-      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] },
+      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] } as Record<string, string[]>,
       required: true 
     },
     { 
       id: 'pan' as DocumentType, 
       name: 'PAN Card', 
-      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] },
+      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] } as Record<string, string[]>,
       required: true 
     },
     { 
       id: 'selfie' as DocumentType, 
       name: 'Selfie / Live Photo', 
-      acceptedFiles: { 'image/jpeg': [], 'image/png': [] },
+      acceptedFiles: { 'image/jpeg': [], 'image/png': [] } as Record<string, string[]>,
       required: true 
     },
     { 
       id: 'marksheet' as DocumentType, 
       name: 'Latest Marksheet', 
-      acceptedFiles: { 'application/pdf': ['.pdf'] },
+      acceptedFiles: { 'application/pdf': ['.pdf'] } as Record<string, string[]>,
       required: true 
     },
     { 
       id: 'income' as DocumentType, 
       name: 'Income Certificate / ITR', 
-      acceptedFiles: { 'application/pdf': ['.pdf'] },
+      acceptedFiles: { 'application/pdf': ['.pdf'] } as Record<string, string[]>,
       required: false 
     },
     { 
       id: 'passbook' as DocumentType, 
       name: 'Bank Passbook', 
-      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] },
+      acceptedFiles: { 'image/jpeg': [], 'image/png': [], 'application/pdf': [] } as Record<string, string[]>,
       required: false 
     },
   ];
@@ -103,7 +103,7 @@ export default function KYCPage() {
   const progressPercentage = (verifiedCount / docConfig.length) * 100;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6 md:p-12 font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-950 dark:text-white p-6 md:p-12 font-sans selection:bg-indigo-500/30 transition-colors duration-500">
       <div className="max-w-6xl mx-auto space-y-12">
         
         {/* Header Section */}
@@ -112,33 +112,33 @@ export default function KYCPage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
-          <div className="flex items-center gap-3 text-indigo-400 font-semibold uppercase tracking-wider text-sm">
-            <span className="w-8 h-px bg-indigo-400/50"></span>
+          <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400 font-semibold uppercase tracking-wider text-sm transition-colors">
+            <span className="w-8 h-px bg-indigo-600/50 dark:bg-indigo-400/50"></span>
             Verification Center
           </div>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white transition-colors">
             KYC Documents
           </h1>
-          <p className="text-gray-400 text-lg max-w-2xl leading-relaxed">
+          <p className="text-gray-500 dark:text-gray-400 text-lg max-w-2xl leading-relaxed transition-colors">
             Upload clear digital copies of your documents. For identity verification, a live selfie is mandatory.
           </p>
         </motion.header>
 
         {/* Progress Bar Layer */}
-        <div className="bg-gray-900/50 border border-gray-800 rounded-3xl p-6 md:p-8">
+        <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 md:p-8 transition-colors">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
             <div className="space-y-1">
-              <h3 className="text-xl font-bold">Verification Progress</h3>
-              <p className="text-gray-400 text-sm">
-                Completed <span className="text-white font-medium">{verifiedCount}</span> of <span className="text-white font-medium">{docConfig.length}</span> documents
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white transition-colors">Verification Progress</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-sm transition-colors">
+                Completed <span className="text-gray-900 dark:text-white font-medium">{verifiedCount}</span> of <span className="text-gray-900 dark:text-white font-medium">{docConfig.length}</span> documents
               </p>
             </div>
             
             <div className="flex items-center gap-4">
                <div className="text-right hidden sm:block">
-                  <div className="text-2xl font-bold text-indigo-400">{Math.round(progressPercentage)}%</div>
+                  <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 transition-colors">{Math.round(progressPercentage)}%</div>
                </div>
-               <div className="relative w-48 h-3 bg-gray-800 rounded-full overflow-hidden border border-white/5">
+               <div className="relative w-48 h-3 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden border border-gray-100 dark:border-white/5 transition-colors">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${progressPercentage}%` }}
@@ -185,10 +185,10 @@ export default function KYCPage() {
         />
 
         {/* Footer Navigation */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-12 border-t border-gray-800">
-          <div className="flex items-center gap-3 p-4 bg-gray-900/30 rounded-2xl border border-gray-800">
-            <ShieldCheck className="w-6 h-6 text-emerald-500" />
-            <p className="text-gray-400 text-xs max-w-[200px]">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-12 border-t border-gray-200 dark:border-gray-800 transition-colors">
+          <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-2xl border border-gray-200 dark:border-gray-800 transition-colors">
+            <ShieldCheck className="w-6 h-6 text-emerald-600 dark:text-emerald-500 transition-colors" />
+            <p className="text-gray-500 dark:text-gray-400 text-xs max-w-[200px] transition-colors">
               Secure 256-bit SSL encrypted connection. Your data is private.
             </p>
           </div>
