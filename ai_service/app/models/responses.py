@@ -103,3 +103,6 @@ class HealthResponse(BaseModel):
     kafka_connected: bool
     qdrant_connected: bool
     llm_provider: str
+    redis_connected: Optional[bool] = None
+    minio_connected: Optional[bool] = None
+    risk_model_loaded: Optional[bool] = None

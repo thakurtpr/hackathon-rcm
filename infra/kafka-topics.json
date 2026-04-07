@@ -1,0 +1,98 @@
+{
+  "version": "1.0",
+  "topics": [
+    {
+      "name": "document.uploaded",
+      "description": "Fired when a document is uploaded to MinIO",
+      "schema": {
+        "doc_id": "string",
+        "user_id": "string",
+        "doc_type": "string",
+        "minio_path": "string"
+      }
+    },
+    {
+      "name": "app.submitted",
+      "description": "Fired when a loan/scholarship application is submitted",
+      "schema": {
+        "app_id": "string",
+        "user_id": "string",
+        "type": "string"
+      }
+    },
+    {
+      "name": "eligibility.calculated",
+      "description": "Fired when eligibility score is computed",
+      "schema": {
+        "app_id": "string",
+        "composite_score": "float",
+        "band": "string",
+        "risk_band": "string"
+      }
+    },
+    {
+      "name": "behavioral.scored",
+      "description": "Fired when behavioral PQ scoring is complete",
+      "schema": {
+        "app_id": "string",
+        "pq_score": "float",
+        "dimension_scores": "object"
+      }
+    },
+    {
+      "name": "kyc.completed",
+      "description": "Fired when KYC processing is complete",
+      "schema": {
+        "app_id": "string",
+        "user_id": "string",
+        "doc_trust_score": "float",
+        "face_match_pass": "boolean"
+      }
+    },
+    {
+      "name": "fraud.checked",
+      "description": "Fired when fraud detection is complete",
+      "schema": {
+        "app_id": "string",
+        "user_id": "string",
+        "fraud_flag": "boolean",
+        "fraud_reasons": "array"
+      }
+    },
+    {
+      "name": "scholarship.matched",
+      "description": "Fired when scholarship matching is complete",
+      "schema": {
+        "app_id": "string",
+        "user_id": "string",
+        "matches": "array"
+      }
+    },
+    {
+      "name": "explanation.ready",
+      "description": "Fired when AI explanation narrative is ready",
+      "schema": {
+        "app_id": "string",
+        "explanation": "string"
+      }
+    },
+    {
+      "name": "loan.disbursed",
+      "description": "Fired when a semester disbursement is released",
+      "schema": {
+        "app_id": "string",
+        "semester": "integer",
+        "amount": "float"
+      }
+    },
+    {
+      "name": "approval.decided",
+      "description": "Fired when final approval decision is made",
+      "schema": {
+        "app_id": "string",
+        "decision": "string",
+        "reason": "string"
+      }
+    }
+  ]
+}

@@ -10,8 +10,10 @@ from app.config import get_settings
 from app.kafka.consumer import start_kafka_consumer
 from app.routers.behavioral import router as behavioral_router
 from app.routers.chat import router as chat_router
+from app.routers.fraud import router as fraud_router
 from app.routers.health import router as health_router
 from app.services import minio_client, qdrant_service
+from app.services.risk_model import load_model as load_risk_model
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -110,7 +112,17 @@ async def lifespan(app: FastAPI):
             await seed_scholarships(app.state.embedder, qdrant_service)
             logger.info("Scholarships seeded ✓")
 
-    # 7. Start Kafka consumer
+    # 7. Load XGBoost Risk Model
+    logger.info("Loading XGBoost risk model...")
+    try:
+        risk_loaded = await asyncio.to_thread(load_risk_model)
+        app.state.risk_model_loaded = risk_loaded
+        logger.info("Risk model loaded ✓" if risk_loaded else "Risk model unavailable (rule-based fallback)")
+    except Exception as exc:
+        logger.warning("Risk model load failed (non-fatal): %s", exc)
+        app.state.risk_model_loaded = False
+
+    # 8. Start Kafka consumer
     app.state.kafka_task = asyncio.create_task(start_kafka_consumer(app))
     logger.info("Kafka consumer started ✓")
 
@@ -138,3 +150,4 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(behavioral_router, prefix="/behavioral")
 app.include_router(chat_router, prefix="/chat")
+app.include_router(fraud_router)

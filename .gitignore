@@ -1,30 +1,35 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Environment
+# Environment files — NEVER commit
 .env
-!.env.example
+*.env.local
+*.env.production
 
-# Models & data caches
-*.onnx
-*.onnx_model/
-insightface_buffalo_l/
-~/.insightface/
-.paddleocr/
+# Go
+backend/backend
+backend/*.exe
+*.exe
+
+# Python
+ai_service/.venv/
+ai_service/__pycache__/
+ai_service/**/__pycache__/
+ai_service/.pytest_cache/
+ai_service/models/*.pkl
+*.pyc
 
 # Node
-node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
 
-# OS
-.DS_Store
-
-# Logs
+# Docker
 *.log
-/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude internal
+.claude-flow/
+.hive-mind/
+*.hive-mind.json
