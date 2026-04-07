@@ -1,25 +1,23 @@
 package main
 
 import (
+	"database/sql"
 	"log"
-	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// --- Models ---
-
 type RegisterRequest struct {
-	FullName string `json:"full_name" binding:"required,min=3"`
-	Mobile   string `json:"mobile" binding:"required,len=10"`
-	Email    string `json:"email" binding:"required,email"`
-	DOB      string `json:"dob" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
-	Intent   string `json:"intent" binding:"required,oneof=loan scholarship both"`
+	FullName string `json:"full_name"`
+	Mobile   string `json:"mobile"`
+	Email    string `json:"email"`
+	DOB      string `json:"dob"`
+	Password string `json:"password"`
+	Intent   string `json:"intent"`
 }
 
 type RegisterResponse struct {
@@ -29,8 +27,8 @@ type RegisterResponse struct {
 }
 
 type VerifyOTPRequest struct {
-	OtpToken string `json:"otp_token" binding:"required"`
-	OtpCode  string `json:"otp_code" binding:"required,len=6"`
+	OtpToken string `json:"otp_token"`
+	OtpCode  string `json:"otp_code"`
 }
 
 type VerifyOTPResponse struct {
@@ -41,8 +39,8 @@ type VerifyOTPResponse struct {
 }
 
 type LoginRequest struct {
-	Mobile   string `json:"mobile" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Mobile   string `json:"mobile"`
+	Password string `json:"password"`
 }
 
 type LoginResponse struct {
@@ -53,30 +51,14 @@ type LoginResponse struct {
 	AppStatus    string `json:"app_status"`
 }
 
-type User struct {
-	ID           string
-	FullName     string
-	Mobile       string
-	Email        string
-	DOB          string
-	PasswordHash string
-	Intent       string
-	IsVerified   bool
-}
-
 type OTPDetails struct {
 	OTPCode   string
 	Mobile    string
 	ExpiresAt time.Time
 }
 
-// --- Databases ---
-
-var users = make(map[string]*User)         // Mobile -> User
-var otpStore = make(map[string]OTPDetails) // otpToken -> OTPDetails
+var otpStore = make(map[string]OTPDetails)
 var jwtSecret = []byte("hackathon-secret-key-change-in-prod")
-
-// --- Utils ---
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -99,9 +81,7 @@ func GenerateTokens(userID string, intent string) (string, string, error) {
 	claimsAccess := &Claims{
 		UserID: userID,
 		Intent: intent,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTimeAccess),
-		},
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(expirationTimeAccess)},
 	}
 	tokenAccess := jwt.NewWithClaims(jwt.SigningMethodHS256, claimsAccess)
 	accessTokenString, err := tokenAccess.SignedString(jwtSecret)
@@ -113,53 +93,52 @@ func GenerateTokens(userID string, intent string) (string, string, error) {
 	claimsRefresh := &Claims{
 		UserID: userID,
 		Intent: intent,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTimeRefresh),
-		},
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(expirationTimeRefresh)},
 	}
 	tokenRefresh := jwt.NewWithClaims(jwt.SigningMethodHS256, claimsRefresh)
 	refreshTokenString, err := tokenRefresh.SignedString(jwtSecret)
 	if err != nil {
 		return "", "", err
 	}
-
 	return accessTokenString, refreshTokenString, nil
 }
 
-// --- Handlers ---
-
-func RegisterHandler(c *gin.Context) {
+func RegisterHandler(c *fiber.Ctx) error {
 	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload layout: " + err.Error()})
+	}
+	if req.Mobile == "" || req.Password == "" || req.Email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Mobile, email, and password are all required fields"})
 	}
 
-	if _, exists := users[req.Mobile]; exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User with this mobile already exists"})
-		return
+	if DB != nil {
+		var existing string
+		err := DB.QueryRow("SELECT id FROM users WHERE mobile=$1 OR email=$2", req.Mobile, req.Email).Scan(&existing)
+		if err != sql.ErrNoRows && err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal DB error verifying existing user"})
+		}
+		if existing != "" {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "User with this mobile or email string already exists"})
+		}
 	}
 
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "System failed to cryptographically hash the password"})
 	}
 
-	userID := uuid.New().String()
-	user := &User{
-		ID:           userID,
-		FullName:     req.FullName,
-		Mobile:       req.Mobile,
-		Email:        req.Email,
-		DOB:          req.DOB,
-		PasswordHash: hashedPassword,
-		Intent:       req.Intent,
-		IsVerified:   false,
+	var userID string
+	if DB != nil {
+		err = DB.QueryRow("INSERT INTO users (mobile, email, password_hash, intent) VALUES ($1, $2, $3, $4) RETURNING id", req.Mobile, req.Email, hashedPassword, req.Intent).Scan(&userID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to strictly save user mapping to Postgres: " + err.Error()})
+		}
+	} else {
+		userID = uuid.New().String()
 	}
-	users[req.Mobile] = user
 
-	otpCode := "123456" // Expected value
+	otpCode := "123456" // Mock SMS for Hackathon implementation
 	otpToken := uuid.New().String()
 
 	otpStore[otpToken] = OTPDetails{
@@ -168,88 +147,91 @@ func RegisterHandler(c *gin.Context) {
 		ExpiresAt: time.Now().Add(300 * time.Second),
 	}
 
-	c.JSON(http.StatusCreated, RegisterResponse{
+	return c.Status(fiber.StatusCreated).JSON(RegisterResponse{
 		UserID:    userID,
 		OtpToken:  otpToken,
 		ExpiresIn: 300,
 	})
 }
 
-func VerifyOTPHandler(c *gin.Context) {
+func VerifyOTPHandler(c *fiber.Ctx) error {
 	var req VerifyOTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Malformed payload structure: " + err.Error()})
 	}
 
 	otpDetails, exists := otpStore[req.OtpToken]
 	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired OTP token"})
-		return
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid or severely expired OTP token payload"})
 	}
-
 	if time.Now().After(otpDetails.ExpiresAt) {
 		delete(otpStore, req.OtpToken)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP token has expired"})
-		return
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Your OTP token has gracefully expired. Generate a new one."})
 	}
-
 	if otpDetails.OTPCode != req.OtpCode {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid OTP code"})
-		return
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Incorrect OTP code provided! Strict check failed."})
 	}
 
-	user, exists := users[otpDetails.Mobile]
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
-		return
+	var userID, intent string
+	if DB != nil {
+		err := DB.QueryRow("SELECT id, intent FROM users WHERE mobile=$1", otpDetails.Mobile).Scan(&userID, &intent)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Verified user totally missing from isolated DB record"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Internal DB infrastructure anomaly"})
+		}
+	} else {
+		userID = "mock-id-fallback"; intent = "loan"
 	}
 
-	user.IsVerified = true
 	delete(otpStore, req.OtpToken)
 
-	accessToken, refreshToken, err := GenerateTokens(user.ID, user.Intent)
+	accessToken, refreshToken, err := GenerateTokens(userID, intent)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Application failed mapping the JWT token string securely"})
 	}
 
-	c.JSON(http.StatusOK, VerifyOTPResponse{
+	return c.Status(fiber.StatusOK).JSON(VerifyOTPResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		UserID:       user.ID,
-		Intent:       user.Intent,
+		UserID:       userID,
+		Intent:       intent,
 	})
 }
 
-func LoginHandler(c *gin.Context) {
+func LoginHandler(c *fiber.Ctx) error {
 	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Mangled JSON layout submitted: " + err.Error()})
 	}
 
-	user, exists := users[req.Mobile]
-	if !exists || !CheckPasswordHash(req.Password, user.PasswordHash) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
+	var dbPass, userID, intent string
+	if DB != nil {
+		err := DB.QueryRow("SELECT id, password_hash, intent FROM users WHERE mobile=$1", req.Mobile).Scan(&userID, &dbPass, &intent)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Phone number not registered anywhere locally"})
+			}
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Robust DB lookup failed entirely"})
+		}
+	} else {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Fatal Error: Secure DB is physically inaccessible"})
 	}
 
-	if !user.IsVerified {
-		c.JSON(http.StatusForbidden, gin.H{"error": "User not verified, please verify OTP first"})
-		return
+	if !CheckPasswordHash(req.Password, dbPass) {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Incorrect password injected into endpoint"})
 	}
 
-	accessToken, refreshToken, err := GenerateTokens(user.ID, user.Intent)
+	accessToken, refreshToken, err := GenerateTokens(userID, intent)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Authentication token generator crashed silently"})
 	}
 
-	c.JSON(http.StatusOK, LoginResponse{
+	return c.Status(fiber.StatusOK).JSON(LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		UserID:       user.ID,
+		UserID:       userID,
 		KycStatus:    "PENDING",
 		AppStatus:    "NEW",
 	})
@@ -257,19 +239,24 @@ func LoginHandler(c *gin.Context) {
 
 func main() {
 	InitDB()
-	r := gin.Default()
+	app := fiber.New(fiber.Config{
+		AppName: "Hackathon Core API (Fiber Edition)",
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Fiber caught exception: " + err.Error()})
+		},
+	})
 
-	auth := r.Group("/auth")
+	auth := app.Group("/auth")
 	{
-		auth.POST("/register", RegisterHandler)
-		auth.POST("/verify-otp", VerifyOTPHandler)
-		auth.POST("/login", LoginHandler)
+		auth.Post("/register", RegisterHandler)
+		auth.Post("/verify-otp", VerifyOTPHandler)
+		auth.Post("/login", LoginHandler)
 	}
 
-	AddModuleRoutes(r)
+	AddModuleRoutes(app)
 
-	log.Println("Starting Backend Service on port 8080...")
-	if err := r.Run(":8080"); err != nil {
-		log.Fatalf("Failed to run server: %v", err)
+	log.Println("Starting Exceptionally-Fast Fiber Backend Service on port 8080...")
+	if err := app.Listen(":8080"); err != nil {
+		log.Fatalf("Fiber severely crashed to start: %v", err)
 	}
 }
