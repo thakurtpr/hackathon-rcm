@@ -80,7 +80,7 @@ export default function RegisterPage() {
       const res = await verifyOTP({ otp_token: otpToken, otp_code: otpCode });
       login(res.access_token, { id: res.user_id, name: '' });
       if (typeof window !== 'undefined') sessionStorage.setItem('user_id', res.user_id);
-      router.push('/onboarding');
+      router.push('/chat');
     } catch {
       setApiError('Invalid OTP. Please try again.');
     }
@@ -107,7 +107,7 @@ export default function RegisterPage() {
 
           {otpStep ? (
             <div className="p-8 pt-4 space-y-5">
-              <p className="text-gray-400 text-sm">Enter the 6-digit OTP sent to your mobile. (Dev: use 123456)</p>
+              <p className="text-gray-400 text-sm">Enter the 6-digit OTP sent to your mobile via SMS. If SMS doesn&apos;t arrive, check the backend server console log for the OTP.</p>
               <input
                 type="text"
                 value={otpCode}

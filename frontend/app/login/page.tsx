@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Loader2, Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { Loader2, Phone, Lock, LogIn, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { loginUser } from '@/lib/api';
+import { loginUser, verifyOTP } from '@/lib/api';
 
 // --- Zod Schema ---
 const loginSchema = z.object({
@@ -22,6 +22,10 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
   const [apiError, setApiError] = useState('');
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpToken, setOtpToken] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [pendingUserId, setPendingUserId] = useState('');
   const {
     register,
     handleSubmit,
@@ -37,10 +41,30 @@ export default function LoginPage() {
       const res = await loginUser({ mobile: data.mobile, password: data.password });
       login(res.access_token, { id: res.user_id, name: data.mobile });
       if (typeof window !== 'undefined') sessionStorage.setItem('user_id', res.user_id);
-      router.push('/dashboard');
+      router.push('/chat');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Invalid credentials';
+      const errData = (err as { response?: { status?: number; data?: { error?: string; otp_token?: string; user_id?: string } } })?.response;
+      if (errData?.status === 403 && errData?.data?.otp_token) {
+        setOtpToken(errData.data.otp_token);
+        setPendingUserId(errData.data.user_id || '');
+        setOtpStep(true);
+        setApiError('');
+        return;
+      }
+      const msg = errData?.data?.error || 'Invalid credentials';
       setApiError(msg);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    setApiError('');
+    try {
+      const res = await verifyOTP({ otp_token: otpToken, otp_code: otpCode });
+      login(res.access_token, { id: res.user_id || pendingUserId, name: '' });
+      if (typeof window !== 'undefined') sessionStorage.setItem('user_id', res.user_id || pendingUserId);
+      router.push('/onboarding');
+    } catch {
+      setApiError('Invalid OTP. Please try again.');
     }
   };
 
@@ -64,24 +88,50 @@ export default function LoginPage() {
             <p className="mt-3 text-gray-400 font-medium">Please enter your details to sign in</p>
           </div>
 
+          {apiError && (
+            <div className="mx-8 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+              {apiError}
+            </div>
+          )}
+
+          {otpStep ? (
+            <div className="p-8 pt-4 space-y-5">
+              <p className="text-gray-400 text-sm">Your account is not yet verified. A new OTP has been sent to your mobile. Check your SMS or the backend console log for the OTP.</p>
+              <input
+                type="text"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                placeholder="123456"
+                maxLength={6}
+                className="block w-full px-4 py-3 rounded-xl border border-gray-800 bg-gray-950/50 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <button
+                onClick={handleVerifyOTP}
+                className="w-full py-4 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg transition-all"
+              >
+                Verify OTP
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Form Section */}
           <form onSubmit={handleSubmit(onSubmit)} className="p-8 pt-4 space-y-6">
-            {/* Email Field */}
+            {/* Mobile Field */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300 ml-1">Email Address</label>
+              <label className="text-sm font-semibold text-gray-300 ml-1">Mobile Number</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-zinc-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                  <Phone className="h-5 w-5 text-zinc-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
                 </div>
                 <input
-                  {...register('email')}
-                  type="email"
-                  placeholder="name@email.com"
-                  autoComplete="email"
-                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all duration-300 ${errors.email ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                  {...register('mobile')}
+                  type="tel"
+                  placeholder="9876543210"
+                  autoComplete="tel"
+                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all duration-300 ${errors.mobile ? 'border-red-500/50 ring-red-500/10' : ''}`}
                 />
               </div>
-              {errors.email && <p className="text-xs font-medium text-red-500 mt-1.5 ml-1">{errors.email.message}</p>}
+              {errors.mobile && <p className="text-xs font-medium text-red-500 mt-1.5 ml-1">{errors.mobile.message}</p>}
             </div>
 
             {/* Password Field */}
@@ -132,6 +182,8 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+          </>
+          )}
 
           {/* Footer Section */}
           <div className="p-8 pt-0 text-center">

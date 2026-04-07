@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -69,7 +70,7 @@ func RegisterHandler(c *gin.Context) {
 	}
 
 	userID := uuid.New().String()
-	otpCode := "123456" // In prod: generate random 6-digit and send via SMS
+	otpCode := GenerateOTP()
 	otpToken := uuid.New().String()
 
 	if DB != nil {
@@ -85,7 +86,13 @@ func RegisterHandler(c *gin.Context) {
 		RedisSet(context.Background(), "otp:"+otpToken, req.Mobile+":"+otpCode, 5*time.Minute)
 	}
 
-	// In dev mode without DB: store in-memory (handled by Redis)
+	// Send OTP via Fast2SMS (non-blocking — log error but don't fail registration)
+	go func() {
+		if err := SendOTPViaSMS(req.Mobile, otpCode); err != nil {
+			log.Printf("[SMS] WARNING: OTP send failed for %s: %v", req.Mobile, err)
+		}
+	}()
+
 	c.JSON(http.StatusCreated, gin.H{
 		"user_id":    userID,
 		"otp_token":  otpToken,
@@ -171,7 +178,20 @@ func LoginHandler(c *gin.Context) {
 			return
 		}
 		if !isVerified {
-			c.JSON(http.StatusForbidden, gin.H{"error": "account not verified"})
+			// Re-send OTP so user can resume verification
+			otpCode := GenerateOTP()
+			otpToken := uuid.New().String()
+			RedisSet(context.Background(), "otp:"+otpToken, req.Mobile+":"+otpCode, 5*time.Minute)
+			go func() {
+				if err := SendOTPViaSMS(req.Mobile, otpCode); err != nil {
+					log.Printf("[SMS] resend OTP failed for %s: %v", req.Mobile, err)
+				}
+			}()
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":     "account not verified",
+				"otp_token": otpToken,
+				"user_id":   userID,
+			})
 			return
 		}
 	} else {

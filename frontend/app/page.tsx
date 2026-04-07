@@ -32,8 +32,14 @@ export default function LandingPage() {
             <a className="text-gray-400 hover:text-indigo-400 transition-colors" href="#">Scholarships</a>
           </div>
           <div className="flex items-center gap-4">
-            <button className="hidden md:block text-gray-400 font-medium text-sm hover:text-white transition-colors">Login</button>
-            <button className="bg-indigo-600 px-5 py-2.5 rounded-xl text-white font-semibold text-sm hover:bg-indigo-500 transition-all scale-95 duration-200 hover:scale-100 shadow-md shadow-indigo-500/20">
+            <button
+              onClick={() => router.push('/login')}
+              className="hidden md:block text-gray-400 font-medium text-sm hover:text-white transition-colors"
+            >Login</button>
+            <button
+              onClick={() => router.push('/register')}
+              className="bg-indigo-600 px-5 py-2.5 rounded-xl text-white font-semibold text-sm hover:bg-indigo-500 transition-all scale-95 duration-200 hover:scale-100 shadow-md shadow-indigo-500/20"
+            >
               Get Started
             </button>
           </div>

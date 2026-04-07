@@ -54,18 +54,28 @@ async def lifespan(app: FastAPI):
 
     # 1. Load InsightFace
     logger.info("Loading InsightFace buffalo_l...")
+    logger.info("InsightFace buffalo_l model downloading approximately 400MB — this only happens once")
     try:
         from insightface.app import FaceAnalysis  # type: ignore
         face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-        face_app.prepare(ctx_id=0, det_size=(640, 640))
-        app.state.insightface = face_app
+        try:
+            face_app.prepare(ctx_id=0, det_size=(640, 640))
+        except Exception as prepare_exc:
+            logger.warning("face_app.prepare failed — face match will be unavailable: %s", prepare_exc)
+            app.state.insightface = None
+            app.state.face_app = None
+            face_app = None
 
-        from app.kafka import handlers
-        handlers.insightface_app = face_app
-        logger.info("InsightFace loaded ✓")
+        if face_app is not None:
+            app.state.insightface = face_app
+            app.state.face_app = face_app
+            from app.kafka import handlers
+            handlers.insightface_app = face_app
+            logger.info("InsightFace loaded ✓")
     except Exception as exc:
-        logger.warning("InsightFace failed to load (non-fatal): %s", exc)
+        logger.warning("InsightFace failed to load — face match will be unavailable: %s", exc)
         app.state.insightface = None
+        app.state.face_app = None
 
     # 2. Load SentenceTransformer
     logger.info("Loading sentence-transformers all-MiniLM-L6-v2...")

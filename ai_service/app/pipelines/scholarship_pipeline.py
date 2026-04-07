@@ -28,7 +28,7 @@ def _matches_filters(payload: dict, profile: dict) -> bool:
         if student_cat not in [c.lower() for c in categories]:
             return False
 
-    max_income = payload.get("max_family_income")
+    max_income = payload.get("income_limit", payload.get("max_family_income"))
     if max_income is not None:
         student_income = profile.get("annual_income", 0)
         if student_income is not None and student_income > max_income:

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from app.config import get_settings
@@ -40,19 +41,35 @@ async def handle_doc_uploaded(event: dict) -> None:
         doc_trust_score=result["doc_trust_score"],
     )
 
-    if doc_type in ("aadhaar", "selfie"):
-        this_key = f"{'aadhaar' if doc_type == 'aadhaar' else 'selfie'}_path:{user_id}"
-        other_key = f"{'selfie' if doc_type == 'aadhaar' else 'aadhaar'}_path:{user_id}"
-        await redis_service.set_str(this_key, minio_path, ttl=3600)
-        other_path = await redis_service.get_str(other_key)
-        if other_path and insightface_app is not None:
-            aadhaar_p = minio_path if doc_type == "aadhaar" else other_path
-            selfie_p = other_path if doc_type == "aadhaar" else minio_path
-            face_result = await face_match_pipeline.run(
-                aadhaar_p, selfie_p, minio_client, insightface_app, qdrant_service, user_id, app_id
-            )
-            kyc_payload.face_match_score = face_result.face_match_score
-            kyc_payload.face_match_pass = face_result.face_match_pass
+    if doc_type == "aadhaar":
+        await redis_service.set_str(f"aadhaar_path:{user_id}", minio_path, ttl=3600)
+        other_path = await redis_service.get_str(f"selfie_path:{user_id}")
+    elif doc_type == "selfie":
+        await redis_service.set_str(f"selfie_path:{user_id}", minio_path, ttl=3600)
+        other_path = await redis_service.get_str(f"aadhaar_path:{user_id}")
+    else:
+        other_path = None
+
+    if other_path and doc_type in ("aadhaar", "selfie") and insightface_app is not None:
+        aadhaar_p = minio_path if doc_type == "aadhaar" else other_path
+        selfie_p = other_path if doc_type == "aadhaar" else minio_path
+        face_result = await face_match_pipeline.run(
+            aadhaar_p, selfie_p, minio_client, insightface_app, qdrant_service, user_id, app_id
+        )
+        kyc_payload.face_match_score = face_result.face_match_score
+        kyc_payload.face_match_pass = face_result.face_match_pass
+
+        # Map internal "passed" flag to the external "verified" label
+        external_result = "verified" if face_result.flag == "passed" else face_result.flag
+        await backend_client.post(
+            "/ai/kyc-result",
+            {
+                "user_id": user_id,
+                "result": external_result,
+                "similarity": face_result.face_match_score,
+                "doc_type": "face_match",
+            },
+        )
 
     await backend_client.post_kyc_result(kyc_payload)
     await kafka_producer.produce(
@@ -91,6 +108,8 @@ async def handle_app_submitted(event: dict) -> None:
         selfie_embedding=selfie_embedding,
         backend_client=backend_client,
         qdrant_service=qdrant_service,
+        ocr_income=float(profile.get("ocr_income", 0) or 0),
+        profile_income=float(profile.get("annual_income", 0) or 0),
     )
 
     await backend_client.post_fraud_result(fraud_result)
@@ -113,32 +132,38 @@ async def handle_eligibility_done(event: dict) -> None:
     band = payload.get("band", "review")
     settings = get_settings()
 
-    scholarship_result = await scholarship_pipeline.match(
-        user_id=user_id,
-        app_id=app_id,
-        backend_client=backend_client,
-        qdrant_service=qdrant_service,
-        embedder=embedder,
-        llm_call_fn=settings.make_llm_call,
-    )
-    await backend_client.post_scholarship_result(scholarship_result)
-
+    # Fetch shared data needed by both pipelines before parallel execution
     profile = await backend_client.get_profile(user_id) or {}
     behavioral_cache = await redis_service.get_json(f"behavioral_result:{app_id}") or {}
     pq_score = float(behavioral_cache.get("pq_score", 0.0))
 
-    await orchestrator.run(
-        app_id=app_id,
-        user_id=user_id,
-        composite_score=composite_score,
-        band=band,
-        pq_score=pq_score,
-        profile=profile,
-        doc_statuses={},
-        fraud_flag=False,
-        backend_client=backend_client,
-        llm_call_fn=settings.make_llm_call,
+    # Run scholarship matcher AND agents pipeline IN PARALLEL
+    scholarship_result, agent_state = await asyncio.gather(
+        scholarship_pipeline.match(
+            user_id=user_id,
+            app_id=app_id,
+            backend_client=backend_client,
+            qdrant_service=qdrant_service,
+            embedder=embedder,
+            llm_call_fn=settings.make_llm_call,
+        ),
+        orchestrator.run(
+            app_id=app_id,
+            user_id=user_id,
+            composite_score=composite_score,
+            band=band,
+            pq_score=pq_score,
+            profile=profile,
+            doc_statuses={},
+            fraud_flag=payload.get("fraud_flag", False),
+            backend_client=backend_client,
+            llm_call_fn=settings.make_llm_call,
+        ),
     )
+
+    # POST results — scholarship-result is posted inside orchestrator for explanation,
+    # but scholarship-result must also be posted explicitly here
+    await backend_client.post_scholarship_result(scholarship_result)
 
     await kafka_producer.produce(
         "approval.decided",

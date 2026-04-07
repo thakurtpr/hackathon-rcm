@@ -66,17 +66,73 @@ def _compute_age(dob: str) -> int:
 
 def _build_profile_context(profile: dict) -> str:
     age = _compute_age(profile.get("dob", "2004-01-01"))
+
+    # Support both old API keys (annual_income, percentage) and new conv_data keys
+    # (family_income as band string, last_percentage)
+    name = profile.get("full_name") or "Student"
+    course = profile.get("course") or "Unknown course"
+    institution = profile.get("institution") or "Unknown institution"
+    category = (profile.get("category") or "general").upper()
+    nirf_rank = profile.get("nirf_rank") or "unranked"
+    loan_tenure = profile.get("loan_tenure") or 5
+    gender = profile.get("gender") or "unknown"
+    current_year = profile.get("current_year") or ""
+
+    # Academic score: prefer last_percentage (new key) over percentage (old key)
+    percentage = profile.get("last_percentage") or profile.get("percentage") or "0"
+
+    # Loan amount: direct value (new key is also "loan_amount")
+    loan_amount = profile.get("loan_amount") or "0"
+
+    # Income: new key is "family_income" (band string); old key is "annual_income" (int)
+    _income_band_labels = {
+        "under_1l":   "Under ₹1 lakh per year (very low income)",
+        "1l_to_3l":   "₹1–3 lakh per year (low income)",
+        "3l_to_6l":   "₹3–6 lakh per year (lower-middle income)",
+        "6l_to_10l":  "₹6–10 lakh per year (middle income)",
+        "above_10l":  "Above ₹10 lakh per year (upper-middle income)",
+    }
+    raw_income = profile.get("family_income") or ""
+    income_str = _income_band_labels.get(raw_income, "")
+    if not income_str:
+        annual = profile.get("annual_income") or 0
+        income_str = f"₹{annual:,} per year" if annual else "Not specified"
+
+    # State detection from institution name if not explicit
+    state = profile.get("state") or ""
+    if not state:
+        inst_lower = institution.lower()
+        if any(k in inst_lower for k in [
+            "odisha", "odia", "bhubaneswar", "cuttack", "rourkela",
+            "sambalpur", "berhampur", "ravenshaw", "utkal", "veer surendra",
+        ]):
+            state = "Odisha"
+        elif any(k in inst_lower for k in ["mumbai", "pune", "nagpur", "maharashtra", "aurangabad"]):
+            state = "Maharashtra"
+        elif any(k in inst_lower for k in ["delhi", "new delhi", "dwarka"]):
+            state = "Delhi"
+        elif any(k in inst_lower for k in ["bengaluru", "bangalore", "mysore", "karnataka"]):
+            state = "Karnataka"
+        elif any(k in inst_lower for k in ["chennai", "madurai", "tamil", "coimbatore", "trichy"]):
+            state = "Tamil Nadu"
+        elif any(k in inst_lower for k in ["hyderabad", "telangana", "warangal"]):
+            state = "Telangana"
+        elif any(k in inst_lower for k in ["kolkata", "west bengal", "jadavpur", "presidency"]):
+            state = "West Bengal"
+        elif any(k in inst_lower for k in ["ahmedabad", "gujarat", "vadodara", "surat"]):
+            state = "Gujarat"
+    state = state or "India"
+
+    year_info = f", currently in {current_year} year" if current_year else ""
+
     return (
-        f"Student is studying {profile.get('course', 'Unknown course')} at "
-        f"{profile.get('institution', 'Unknown institution')} "
-        f"(NIRF rank: {profile.get('nirf_rank', 'unranked')}) in "
-        f"{profile.get('state', 'India')}, India. "
-        f"Family income: ₹{profile.get('annual_income', 0)}/year. "
-        f"Last exam result: {profile.get('percentage', 0)}%. "
-        f"Category: {profile.get('category', 'general')}. "
-        f"Loan requested: ₹{profile.get('loan_amount', 0)} for "
-        f"{profile.get('loan_tenure', 5)} years. "
-        f"Gender: {profile.get('gender', 'unknown')}. Age: {age}."
+        f"Student Name: {name}. Age: {age} years{year_info}. "
+        f"Course: {course} at {institution} (NIRF rank: {nirf_rank}) in {state}. "
+        f"Annual Family Income: {income_str}. "
+        f"Academic Performance: {percentage}% or equivalent CGPA. "
+        f"Category: {category}. "
+        f"Loan Amount Requested: ₹{loan_amount} for {loan_tenure} years. "
+        f"Gender: {gender}."
     )
 
 

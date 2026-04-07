@@ -1,21 +1,48 @@
 import logging
+import platform
 from io import BytesIO
 from statistics import mean
 from typing import Callable
 
+import numpy as np
 from PIL import Image
+
+# Apple Silicon (M1/M2/M3): force PaddleOCR to CPU mode to avoid MPS crashes
+if platform.machine() == "arm64":
+    import os
+    os.environ["PADDLE_ON_CPU"] = "1"
 
 logger = logging.getLogger(__name__)
 
 FIELDS_BY_DOC_TYPE = {
-    "aadhaar": ["name", "dob", "gender", "aadhaar_last4", "address_state"],
+    "aadhaar": ["name", "dob", "gender", "address", "aadhaar_number"],
     "pan": ["name", "pan_number", "dob"],
-    "marksheet": ["student_name", "institution", "year", "percentage_or_cgpa", "pass_fail"],
-    "income_cert": ["holder_name", "annual_income", "issuing_authority", "issue_date"],
-    "bank_passbook": ["account_holder_name", "account_number_last4", "bank_name", "ifsc"],
-    "semester_marksheet": ["student_name", "semester_number", "sgpa", "result", "institution", "year"],
+    "marksheet": ["name", "roll_no", "marks", "percentage", "board", "year"],
+    "income_cert": ["name", "annual_income", "issuing_authority", "date"],
+    "bank_passbook": ["account_number", "bank_name", "branch", "ifsc", "balance"],
+    "semester_marksheet": ["semester", "subjects", "sgpa", "cgpa"],
     "selfie": [],
 }
+
+# Module-level OCR instance (loaded once at import time, lazy)
+# On M1/M2/M3 Apple Silicon: PaddleOCR may fail — falls back to pytesseract
+_ocr_instance = None
+_use_pytesseract = False
+
+
+def _get_ocr():
+    global _ocr_instance, _use_pytesseract
+    if _ocr_instance is None:
+        try:
+            from paddleocr import PaddleOCR  # type: ignore
+            _ocr_instance = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        except ImportError:
+            # If PaddleOCR fails on M1, fallback to pytesseract
+            logger.warning("PaddleOCR not available — falling back to pytesseract")
+            import pytesseract  # type: ignore
+            _ocr_instance = pytesseract
+            _use_pytesseract = True
+    return _ocr_instance
 
 
 def _parse_llm_json(raw: str) -> dict:
@@ -45,24 +72,29 @@ async def run(
             images = [Image.open(BytesIO(raw_bytes)).convert("RGB")]
 
         import asyncio
-        import numpy as np
-        from paddleocr import PaddleOCR  # type: ignore
 
-        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        ocr = _get_ocr()
 
         all_texts = []
         all_confidences = []
 
         for img in images:
             np_img = np.array(img)
-            result = await asyncio.to_thread(ocr.ocr, np_img, cls=True)
-            if result and result[0]:
-                for line in result[0]:
-                    if line and len(line) >= 2:
-                        text_info = line[1]
-                        if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
-                            all_texts.append(str(text_info[0]))
-                            all_confidences.append(float(text_info[1]))
+            if _use_pytesseract:
+                # pytesseract fallback
+                text = await asyncio.to_thread(ocr.image_to_string, img)
+                if text.strip():
+                    all_texts.append(text.strip())
+                    all_confidences.append(0.7)
+            else:
+                result = await asyncio.to_thread(ocr.ocr, np_img, cls=True)
+                if result and result[0]:
+                    for line in result[0]:
+                        if line and len(line) >= 2:
+                            text_info = line[1]
+                            if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
+                                all_texts.append(str(text_info[0]))
+                                all_confidences.append(float(text_info[1]))
 
         raw_text = " ".join(all_texts)
         avg_confidence = mean(all_confidences) if all_confidences else 0.0

@@ -6,18 +6,26 @@
     "hive-worker-1775574131259-z7ku",
     "hive-worker-1775574706347-h459",
     "hive-worker-1775574809656-9zkd",
-    "hive-worker-1775575733366-8d70"
+    "hive-worker-1775575733366-8d70",
+    "hive-worker-1775585990892-f4v0",
+    "hive-worker-1775586419421-0sym",
+    "hive-worker-1775589526453-rke9",
+    "hive-worker-1775590782044-yeal",
+    "hive-worker-1775596155078-w1us",
+    "hive-worker-1775597277915-4pwt",
+    "hive-worker-1775597848098-jad0",
+    "hive-worker-1775599798924-x556"
   ],
   "consensus": {
     "pending": [],
     "history": []
   },
   "sharedMemory": {},
-  "createdAt": "2026-04-07T15:26:44.270Z",
-  "updatedAt": "2026-04-07T15:28:53.367Z",
+  "createdAt": "2026-04-07T19:17:07.437Z",
+  "updatedAt": "2026-04-07T22:09:58.924Z",
   "queen": {
-    "agentId": "queen-1775575604270",
-    "electedAt": "2026-04-07T15:26:44.270Z",
+    "agentId": "queen-1775589427437",
+    "electedAt": "2026-04-07T19:17:07.437Z",
     "term": 1
   }
 }

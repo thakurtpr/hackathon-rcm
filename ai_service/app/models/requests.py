@@ -17,4 +17,5 @@ class SubmitAnswersRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
+    user_id: Optional[str] = None
     language: Literal["en", "hi", "od"] = "en"

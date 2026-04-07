@@ -33,13 +33,31 @@ class Settings(BaseSettings):
     demo_app_id: str = "demo-rajan-001"
     demo_user_id: str = "demo-user-rajan"
 
+    def _is_groq_key_valid(self) -> bool:
+        key = self.groq_api_key
+        if not key:
+            return False
+        if key == "gsk_xxxx" or key.startswith("gsk_xxxx"):
+            return False
+        if key == "YOUR_GROQ_API_KEY_FROM_CONSOLE_GROQ_COM":
+            return False
+        return True
+
     @property
     def llm_provider(self) -> str:
-        if self.groq_api_key and self.groq_api_key != "gsk_xxxx":
+        if self._is_groq_key_valid():
             return "groq"
         return "ollama"
 
     def make_llm_call(self, prompt: str, system: str = "", max_tokens: int = 1000) -> str:
+        # If Groq key is a placeholder, return mock response instead of crashing
+        if not self._is_groq_key_valid() and self.llm_provider != "groq":
+            try:
+                return self._call_ollama(prompt, system, max_tokens)
+            except Exception as exc:
+                logger.warning("Ollama call failed, returning mock response: %s", exc)
+                return '{"status": "mock", "message": "LLM not configured — set GROQ_API_KEY in .env"}'
+
         want_json = "json" in prompt.lower() or "JSON" in prompt
         for attempt in range(2):
             try:
@@ -51,7 +69,7 @@ class Settings(BaseSettings):
                 logger.warning("LLM call attempt %d failed: %s", attempt + 1, exc)
                 if attempt == 0:
                     time.sleep(1)
-        return ""
+        return '{"status": "mock", "message": "LLM not configured — set GROQ_API_KEY in .env"}'
 
     def _call_groq(self, prompt: str, system: str, max_tokens: int, want_json: bool) -> str:
         from groq import Groq  # type: ignore

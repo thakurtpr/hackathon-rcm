@@ -57,7 +57,8 @@ class OCRResult(BaseModel):
 class FaceMatchResult(BaseModel):
     face_match_score: float
     face_match_pass: bool
-    flag: Literal["passed", "manual_review", "failed", "no_face_detected"]
+    flag: Literal["passed", "manual_review", "failed", "no_face_detected", "model_not_loaded"]
+    message: Optional[str] = None
 
 
 class KYCResult(BaseModel):
@@ -95,6 +96,7 @@ class ChatResponse(BaseModel):
     reply: str
     sources: list[str]
     conversation_id: str
+    current_stage: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

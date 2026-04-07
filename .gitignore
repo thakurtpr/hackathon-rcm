@@ -16,6 +16,7 @@ ai_service/.pytest_cache/
 ai_service/models/*.pkl
 *.pyc
 
+node_modules/
 # Node
 frontend/node_modules/
 frontend/.next/

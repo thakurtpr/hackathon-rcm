@@ -232,9 +232,95 @@ export const getDisbursalSchedule = async (appId: string) => {
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
-export async function sendChatMessage(message: string, sessionId?: string, language = 'en') {
-  const res = await aiClient.post('/chat/message', { message, session_id: sessionId, language });
+export async function sendChatMessage(message: string, conversationId?: string, language = 'en') {
+  const res = await aiClient.post('/chat/message', {
+    message,
+    conversation_id: conversationId || `conv-${Date.now()}`,
+    user_id: typeof window !== 'undefined' ? sessionStorage.getItem('user_id') || undefined : undefined,
+    language,
+  });
   return res.data;
+}
+
+export async function sendChatStream(
+  message: string,
+  conversationId: string,
+  onChunk: (text: string) => void,
+  onDone: (sessionId?: string) => void,
+  onError: (err: Error) => void
+) {
+  const userId =
+    typeof window !== 'undefined' ? sessionStorage.getItem('user_id') ?? undefined : undefined;
+  const sessionId =
+    typeof window !== 'undefined' ? sessionStorage.getItem('chat_session') ?? undefined : undefined;
+
+  // Try SSE streaming endpoint first
+  try {
+    const response = await fetch(`${AI_URL}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        conversation_id: sessionId || conversationId,
+        user_id: userId,
+        language: 'en',
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (response.ok && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let storedSessionId: string | undefined;
+      while (!done) {
+        const { done: d, value } = await reader.read();
+        done = d;
+        if (value) {
+          for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') { done = true; break; }
+            try {
+              const parsed = JSON.parse(data) as { text?: string; session_id?: string };
+              if (parsed.text) onChunk(parsed.text);
+              if (parsed.session_id) storedSessionId = parsed.session_id;
+            } catch {
+              if (data) onChunk(data);
+            }
+          }
+        }
+      }
+      if (storedSessionId && typeof window !== 'undefined') {
+        sessionStorage.setItem('chat_session', storedSessionId);
+      }
+      onDone(storedSessionId);
+      return;
+    }
+  } catch {
+    // fall through to regular endpoint with simulated streaming
+  }
+
+  // Fallback: regular endpoint — output full response immediately
+  try {
+    const res = await aiClient.post('/chat/message', {
+      message,
+      conversation_id: sessionId || conversationId,
+      user_id: userId,
+      language: 'en',
+    });
+    const reply: string =
+      res.data?.reply ||
+      res.data?.response ||
+      res.data?.message ||
+      "Service temporarily unavailable. Please try again.";
+    const sid: string | undefined = res.data?.session_id || res.data?.conversation_id;
+    if (sid && typeof window !== 'undefined') sessionStorage.setItem('chat_session', sid);
+    onChunk(reply);
+    onDone(sid);
+  } catch (err) {
+    onError(err as Error);
+  }
 }
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

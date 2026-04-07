@@ -96,6 +96,17 @@ async def get_document_status(doc_id: str) -> Optional[dict]:
         return None
 
 
+async def post(path: str, data: dict) -> None:
+    """Generic POST helper for arbitrary payloads."""
+    try:
+        resp = await get_http_client().post(path, json=data)
+        resp.raise_for_status()
+    except httpx.ConnectError:
+        logger.warning("Person B not reachable — operating in standalone mode")
+    except Exception as exc:
+        logger.error("POST %s failed: %s", path, exc)
+
+
 async def post_kyc_result(payload: KYCResult) -> None:
     try:
         resp = await get_http_client().post("/ai/kyc-result", json=payload.model_dump())
@@ -106,19 +117,31 @@ async def post_kyc_result(payload: KYCResult) -> None:
         logger.error("post_kyc_result failed: %s", exc)
 
 
-async def post_behavioral_result(payload: BehavioralResult) -> None:
+async def post_behavioral_result(payload: BehavioralResult, answers: list | None = None) -> None:
     try:
         data = {
             "app_id": payload.app_id,
             "pq_score": payload.pq_score,
-            "fin_resp": payload.dimension_scores.fin_resp,
-            "resilience": payload.dimension_scores.resilience,
-            "goal_clarity": payload.dimension_scores.goal_clarity,
-            "risk_aware": payload.dimension_scores.risk_aware,
-            "initiative": payload.dimension_scores.initiative,
-            "social_cap": payload.dimension_scores.social_cap,
             "question_hash": payload.question_hash,
+            "dimension_scores": {
+                "financial_responsibility": payload.dimension_scores.fin_resp,
+                "resilience": payload.dimension_scores.resilience,
+                "goal_clarity": payload.dimension_scores.goal_clarity,
+                "risk_awareness": payload.dimension_scores.risk_aware,
+                "initiative": payload.dimension_scores.initiative,
+                "social_capital": payload.dimension_scores.social_cap,
+            },
             "time_flags": payload.time_flags,
+            "answers": [
+                {
+                    "question_id": (a.question_id if hasattr(a, "question_id") else a["question_id"]),
+                    "answer": (a.answer if hasattr(a, "answer") else a["answer"]),
+                    "time_taken_seconds": (
+                        a.time_taken_seconds if hasattr(a, "time_taken_seconds") else a.get("time_taken_seconds", 0)
+                    ),
+                }
+                for a in (answers or [])
+            ],
         }
         resp = await get_http_client().post("/ai/behavioral-result", json=data)
         resp.raise_for_status()
@@ -139,8 +162,22 @@ async def post_fraud_result(payload: FraudResult) -> None:
 
 
 async def post_scholarship_result(payload: ScholarshipResult) -> None:
+    """Post to PersonB using the agreed API contract shape."""
     try:
-        resp = await get_http_client().post("/ai/scholarship-result", json=payload.model_dump())
+        data = {
+            "user_id": payload.app_id,  # app_id maps to user context for PersonB
+            "scholarships": [
+                {
+                    "id": s.source or s.name,
+                    "name": s.name,
+                    "amount": s.amount,
+                    "reason": s.reason,
+                }
+                for s in payload.matched_scholarships
+            ],
+            "count": len(payload.matched_scholarships),
+        }
+        resp = await get_http_client().post("/ai/scholarship-result", json=data)
         resp.raise_for_status()
     except httpx.ConnectError:
         logger.warning("Person B not reachable — operating in standalone mode")
@@ -149,8 +186,22 @@ async def post_scholarship_result(payload: ScholarshipResult) -> None:
 
 
 async def post_explanation_result(payload: ExplanationResult) -> None:
+    """Post to PersonB using the agreed API contract shape."""
     try:
-        resp = await get_http_client().post("/ai/explanation-result", json=payload.model_dump())
+        decision = payload.decision_explanation.lower()
+        if "approved" in decision:
+            recommendation = "approved"
+        elif "reject" in decision or "denied" in decision:
+            recommendation = "rejected"
+        else:
+            recommendation = "conditional"
+        data = {
+            "user_id": payload.app_id,
+            "explanation": payload.decision_explanation,
+            "recommendation": recommendation,
+            "confidence": 0.85,  # default confidence; updated when model provides it
+        }
+        resp = await get_http_client().post("/ai/explanation-result", json=data)
         resp.raise_for_status()
     except httpx.ConnectError:
         logger.warning("Person B not reachable — operating in standalone mode")
