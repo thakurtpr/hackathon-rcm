@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1a1a1a;background:#fff;padding:32px}
+h1{font-size:22px;font-weight:700;color:#0c1e3c;border-bottom:3px solid #534AB7;padding-bottom:10px;margin-bottom:6px}
+.meta{font-size:11px;color:#666;margin-bottom:24px}
+.meta span{margin-right:20px}
+h2{font-size:14px;font-weight:700;color:#fff;background:#26215C;padding:7px 14px;border-radius:5px;margin:26px 0 10px}
+h3{font-size:13px;font-weight:700;color:#26215C;margin:16px 0 6px;border-left:3px solid #7F77DD;padding-left:8px}
+h4{font-size:12px;font-weight:700;color:#534AB7;margin:12px 0 4px}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
+th{background:#EEEDFE;color:#26215C;font-weight:700;padding:7px 10px;text-align:left;border:1px solid #AFA9EC}
+td{padding:6px 10px;border:1px solid #dde0f0;vertical-align:top}
+tr:nth-child(even) td{background:#f9f8ff}
+code{background:#f0eeff;padding:1px 5px;border-radius:3px;font-family:'Courier New',monospace;font-size:11px;color:#534AB7}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.req{background:#fdeedd;color:#7a3800}
+.opt{background:#f0f0f0;color:#555}
+.tip{background:#e8f5e8;border-left:3px solid #1D9E75;padding:7px 12px;margin:8px 0 14px;font-size:11px;color:#085041;border-radius:0 4px 4px 0}
+.note{background:#fffbe6;border-left:3px solid #f0ad00;padding:7px 12px;margin:8px 0 14px;font-size:11px;color:#5a4000;border-radius:0 4px 4px 0}
+.warn{background:#fdeaea;border-left:3px solid #e24b4a;padding:7px 12px;margin:8px 0 14px;font-size:11px;color:#7a1a1a;border-radius:0 4px 4px 0}
+.intro{font-size:11px;color:#555;margin-bottom:10px;padding:6px 10px;background:#f5f4ff;border-radius:4px}
+ul{padding-left:18px;margin:6px 0}
+li{margin-bottom:3px;font-size:12px}
+.print-btn{position:fixed;top:16px;right:16px;background:#534AB7;color:#fff;border:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;z-index:999}
+.print-btn:hover{background:#3C3489}
+@media print{.print-btn{display:none}body{padding:18px}}
+.divider{border:none;border-top:1px solid #d0ceee;margin:20px 0}
+.tag{display:inline-block;background:#EEEDFE;color:#3C3489;border-radius:3px;padding:1px 6px;font-size:10px;font-family:monospace;margin:2px 2px 2px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.card{border:1px solid #AFA9EC;border-radius:6px;padding:10px 12px;background:#fdfcff}
+.card h4{margin-top:0;color:#3C3489}
+.flow{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.fnum{background:#534AB7;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.ftext{font-size:12px;color:#333}
+/* arch diagram */
+.arch-wrap{background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px;overflow-x:auto}
+svg.arch text{font-family:'Segoe UI',sans-serif}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">Download / Print PDF</button>
+
+<h1>Person C — AI / LLM Engineering Sheet</h1>
+<div class="meta">
+  <span>Project: AI Student Loan &amp; Scholarship System</span>
+  <span>Owner: Person C — AI/LLM Engineer</span>
+  <span>Stack: Python 3.11 + FastAPI + LangGraph + Groq API</span>
+  <span>Service base: <code>http://localhost:8001</code></span>
+</div>
+<div class="note">Person C runs a completely separate Python FastAPI service. Person B calls C's question endpoint directly. For all other results (OCR, fraud, PQ scores, scholarships, explanations), Person C posts back to Person B's bridge endpoints. Person C listens to Kafka for triggers. Never touches PostgreSQL directly — always reads student data via Person B's REST API.</div>
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 1 — TECH STACK</h2>
+<div class="grid2">
+<div class="card">
+<h4>Core AI stack</h4>
+<div class="tag">fastapi</div><div class="tag">uvicorn</div>
+<div class="tag">langchain</div><div class="tag">langgraph</div>
+<div class="tag">groq (llama-3-70b)</div>
+<div class="tag">paddleocr</div><div class="tag">layoutlm (HuggingFace)</div>
+<div class="tag">insightface</div><div class="tag">opencv-python</div>
+<div class="tag">sentence-transformers</div>
+<div class="tag">qdrant-client</div>
+<div class="tag">minio (python sdk)</div>
+</div>
+<div class="card">
+<h4>Supporting libs</h4>
+<div class="tag">kafka-python</div>
+<div class="tag">httpx (async HTTP)</div>
+<div class="tag">pillow</div>
+<div class="tag">pdf2image</div>
+<div class="tag">pydantic v2</div>
+<div class="tag">python-dotenv</div>
+<div class="tag">numpy</div>
+<div class="tag">scikit-learn</div>
+<div class="tag">xgboost (risk model)</div>
+<div class="tag">pytest + httpx (testing)</div>
+</div>
+</div>
+
+<h3>Folder structure</h3>
+<table>
+<tr><th>Path</th><th>Contains</th></tr>
+<tr><td><code>app/main.py</code></td><td>FastAPI app entry point, all routers registered</td></tr>
+<tr><td><code>app/routers/</code></td><td>One router file per pipeline: kyc.py, behavioral.py, fraud.py, scholarship.py, chat.py</td></tr>
+<tr><td><code>app/agents/</code></td><td>LangGraph agent definitions — one file per agent</td></tr>
+<tr><td><code>app/agents/orchestrator.py</code></td><td>LangGraph graph definition wiring all 8 agents</td></tr>
+<tr><td><code>app/pipelines/</code></td><td>OCR pipeline, face match pipeline, scoring pipeline</td></tr>
+<tr><td><code>app/models/</code></td><td>Pydantic request/response schemas</td></tr>
+<tr><td><code>app/kafka/</code></td><td>consumer.py (listens to topics) + producer.py (fires events)</td></tr>
+<tr><td><code>app/services/</code></td><td>External service clients: minio_client.py, qdrant_client.py, backend_client.py</td></tr>
+<tr><td><code>app/prompts/</code></td><td>All LLM prompt templates — keep separate from code</td></tr>
+<tr><td><code>data/scholarships/</code></td><td>JSON seed data for scholarships to embed into Qdrant</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 2 — ARCHITECTURE DIAGRAM (Person C internals)</h2>
+<div class="arch-wrap" style="overflow-x:auto;overflow-y:visible">
+<svg class="arch" width="100%" viewBox="0 0 760 640" xmlns="http://www.w3.org/2000/svg" style="min-width:600px;display:block">
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#534AB7" stroke-width="1.5" stroke-linecap="round"/>
+</marker>
+<marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-linecap="round"/>
+</marker>
+<marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="#BA7517" stroke-width="1.5" stroke-linecap="round"/>
+</marker>
+</defs>
+
+<!-- Kafka inputs top -->
+<rect x="10" y="10" width="740" height="44" rx="8" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.8"/>
+<text x="380" y="27" text-anchor="middle" font-size="12" font-weight="700" fill="#633806">Kafka Consumer — topics listened to by Person C</text>
+<text x="380" y="44" text-anchor="middle" font-size="11" fill="#854F0B">document.uploaded · app.submitted · eligibility.calculated</text>
+
+<!-- Pipeline boxes row 1 -->
+<!-- OCR Pipeline -->
+<rect x="10" y="74" width="218" height="130" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="119" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#26215C">OCR + KYC pipeline</text>
+<rect x="22" y="100" width="194" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="119" y="117" text-anchor="middle" font-size="11" fill="#3C3489">1. Fetch file from MinIO</text>
+<rect x="22" y="132" width="194" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="119" y="149" text-anchor="middle" font-size="11" fill="#3C3489">2. PaddleOCR extraction</text>
+<rect x="22" y="163" width="194" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="119" y="180" text-anchor="middle" font-size="11" fill="#3C3489">3. LayoutLM structuring</text>
+
+<!-- Face Match -->
+<rect x="240" y="74" width="218" height="130" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="349" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#26215C">Face match pipeline</text>
+<rect x="252" y="100" width="194" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="349" y="117" text-anchor="middle" font-size="11" fill="#3C3489">1. Load Aadhaar + selfie</text>
+<rect x="252" y="132" width="194" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="349" y="149" text-anchor="middle" font-size="11" fill="#3C3489">2. InsightFace embedding</text>
+<rect x="252" y="163" width="194" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="349" y="180" text-anchor="middle" font-size="11" fill="#3C3489">3. Cosine similarity score</text>
+
+<!-- Fraud -->
+<rect x="470" y="74" width="280" height="130" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="610" y="93" text-anchor="middle" font-size="12" font-weight="700" fill="#26215C">Fraud detection pipeline</text>
+<rect x="482" y="100" width="256" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="610" y="117" text-anchor="middle" font-size="11" fill="#3C3489">1. Duplicate PAN/Aadhaar DB check</text>
+<rect x="482" y="132" width="256" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="610" y="149" text-anchor="middle" font-size="11" fill="#3C3489">2. Face embedding pool comparison</text>
+<rect x="482" y="163" width="256" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="610" y="180" text-anchor="middle" font-size="11" fill="#3C3489">3. Doc metadata tamper check</text>
+
+<!-- Arrow from OCR+Face to result -->
+<line x1="119" y1="204" x2="119" y2="226" stroke="#534AB7" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#ar)"/>
+<line x1="349" y1="204" x2="349" y2="226" stroke="#534AB7" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#ar)"/>
+<line x1="610" y1="204" x2="610" y2="226" stroke="#534AB7" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#ar)"/>
+
+<!-- Results row -->
+<rect x="10" y="226" width="218" height="34" rx="6" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="119" y="247" text-anchor="middle" font-size="11" font-weight="700" fill="#085041">POST /ai/kyc-result → Person B</text>
+<rect x="240" y="226" width="218" height="34" rx="6" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="349" y="247" text-anchor="middle" font-size="11" font-weight="700" fill="#085041">POST /ai/kyc-result → Person B</text>
+<rect x="470" y="226" width="280" height="34" rx="6" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="610" y="247" text-anchor="middle" font-size="11" font-weight="700" fill="#085041">POST /ai/fraud-result → Person B</text>
+
+<!-- Behavioral PQ Engine -->
+<rect x="10" y="282" width="460" height="130" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="240" y="301" text-anchor="middle" font-size="12" font-weight="700" fill="#26215C">Behavioral PQ engine (LangGraph + Groq)</text>
+<rect x="22" y="308" width="136" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="90" y="325" text-anchor="middle" font-size="11" fill="#3C3489">Fetch student profile</text>
+<rect x="168" y="308" width="136" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="236" y="325" text-anchor="middle" font-size="11" fill="#3C3489">Generate 8 questions</text>
+<rect x="314" y="308" width="144" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="386" y="325" text-anchor="middle" font-size="11" fill="#3C3489">Serve via GET endpoint</text>
+<line x1="158" y1="321" x2="166" y2="321" stroke="#534AB7" stroke-width="1" marker-end="url(#ar)"/>
+<line x1="304" y1="321" x2="312" y2="321" stroke="#534AB7" stroke-width="1" marker-end="url(#ar)"/>
+<rect x="22" y="344" width="136" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="90" y="361" text-anchor="middle" font-size="11" fill="#3C3489">Receive answers</text>
+<rect x="168" y="344" width="136" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="236" y="361" text-anchor="middle" font-size="11" fill="#3C3489">LLM score 6 dims</text>
+<rect x="314" y="344" width="144" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="386" y="361" text-anchor="middle" font-size="11" fill="#3C3489">Rule-based validate</text>
+<line x1="158" y1="357" x2="166" y2="357" stroke="#534AB7" stroke-width="1" marker-end="url(#ar)"/>
+<line x1="304" y1="357" x2="312" y2="357" stroke="#534AB7" stroke-width="1" marker-end="url(#ar)"/>
+<line x1="240" y1="412" x2="240" y2="430" stroke="#534AB7" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#ar)"/>
+<rect x="60" y="412" width="358" height="34" rx="6" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="239" y="433" text-anchor="middle" font-size="11" font-weight="700" fill="#085041">POST /ai/behavioral-result → Person B</text>
+
+<!-- Agent Orchestrator -->
+<rect x="480" y="282" width="270" height="164" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="615" y="301" text-anchor="middle" font-size="12" font-weight="700" fill="#26215C">LangGraph agent orchestrator</text>
+<rect x="492" y="308" width="246" height="22" rx="4" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="615" y="323" text-anchor="middle" font-size="11" fill="#3C3489">Student profile agent</text>
+<rect x="492" y="334" width="246" height="22" rx="4" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="615" y="349" text-anchor="middle" font-size="11" fill="#3C3489">Document verification agent</text>
+<rect x="492" y="360" width="246" height="22" rx="4" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="615" y="375" text-anchor="middle" font-size="11" fill="#3C3489">Eligibility eval agent</text>
+<rect x="492" y="386" width="246" height="22" rx="4" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="615" y="401" text-anchor="middle" font-size="11" fill="#3C3489">Policy compliance agent</text>
+<rect x="492" y="412" width="246" height="22" rx="4" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="615" y="427" text-anchor="middle" font-size="11" fill="#3C3489">Final approval agent</text>
+<line x1="615" y1="446" x2="615" y2="464" stroke="#534AB7" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#ar)"/>
+<rect x="480" y="464" width="270" height="34" rx="6" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="615" y="485" text-anchor="middle" font-size="11" font-weight="700" fill="#085041">POST /ai/explanation-result → Person B</text>
+
+<!-- Scholarship matcher -->
+<rect x="10" y="510" width="460" height="90" rx="8" fill="#EEEDFE" stroke="#7F77DD" stroke-width="0.8"/>
+<text x="240" y="529" text-anchor="middle" font-size="12" font-weight="700" fill="#26215C">Scholarship matcher (Qdrant RAG)</text>
+<rect x="22" y="536" width="136" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="90" y="553" text-anchor="middle" font-size="11" fill="#3C3489">Embed profile</text>
+<rect x="168" y="536" width="136" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="236" y="553" text-anchor="middle" font-size="11" fill="#3C3489">Qdrant search top-5</text>
+<rect x="314" y="536" width="144" height="26" rx="5" fill="#fff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="386" y="553" text-anchor="middle" font-size="11" fill="#3C3489">Rank + filter results</text>
+<line x1="158" y1="549" x2="166" y2="549" stroke="#534AB7" stroke-width="1" marker-end="url(#ar)"/>
+<line x1="304" y1="549" x2="312" y2="549" stroke="#534AB7" stroke-width="1" marker-end="url(#ar)"/>
+<rect x="60" y="568" width="358" height="26" rx="6" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.8"/>
+<text x="239" y="585" text-anchor="middle" font-size="11" font-weight="700" fill="#085041">POST /ai/scholarship-result → Person B</text>
+
+<!-- Shared stores bottom label -->
+<rect x="10" y="608" width="740" height="26" rx="6" fill="#f5f4ff" stroke="#AFA9EC" stroke-width="0.5"/>
+<text x="380" y="625" text-anchor="middle" font-size="11" fill="#3C3489">Shared: Qdrant (vectors) · MinIO client (doc fetch) · Redis (session cache) · httpx (calls to Person B)</text>
+</svg>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 3 — KAFKA CONSUMER SETUP</h2>
+<div class="intro">Person C runs a background Kafka consumer thread alongside FastAPI. Each topic maps to a handler function.</div>
+
+<table>
+<tr><th>Topic consumed</th><th>Handler function</th><th>What it does</th></tr>
+<tr><td><code>document.uploaded</code></td><td><code>handle_doc_uploaded()</code></td><td>Fetches file from MinIO path in payload → runs OCR pipeline → if doc_type is aadhaar or selfie, also runs face match → POST /ai/kyc-result</td></tr>
+<tr><td><code>app.submitted</code></td><td><code>handle_app_submitted()</code></td><td>Fetches student profile from Person B → generates behavioral questions and caches in Redis → triggers fraud check pipeline → POST /ai/fraud-result</td></tr>
+<tr><td><code>eligibility.calculated</code></td><td><code>handle_eligibility_done()</code></td><td>Triggers LangGraph agent orchestrator → runs scholarship matcher → POST /ai/explanation-result and /ai/scholarship-result</td></tr>
+</table>
+
+<div class="note">Run Kafka consumer in a separate asyncio task at startup: <code>asyncio.create_task(start_kafka_consumer())</code> in FastAPI lifespan handler. Use consumer group id <code>ai-svc</code>.</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 4 — API ENDPOINTS (Person C exposes)</h2>
+<div class="intro">Person C exposes 2 REST endpoints that Person B calls directly. All other results are pushed back via POST.</div>
+
+<h3>GET /behavioral/questions</h3>
+<p class="intro">Person B calls this to fetch the generated question set for a student. Questions are pre-generated and cached in Redis when <code>app.submitted</code> Kafka event fires.</p>
+<table>
+<tr><th>Query param</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+</table>
+<p style="font-size:12px;margin:6px 0 4px"><strong>Response 200:</strong></p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>questions</code></td><td>array</td><td>8 question objects</td></tr>
+<tr><td><code>questions[].question_id</code></td><td>string</td><td>UUID</td></tr>
+<tr><td><code>questions[].question_text</code></td><td>string</td><td>Display to student</td></tr>
+<tr><td><code>questions[].type</code></td><td>enum</td><td><code>mcq</code> or <code>free_text</code></td></tr>
+<tr><td><code>questions[].options</code></td><td>array/null</td><td>4 strings if MCQ, null if free_text</td></tr>
+<tr><td><code>questions[].dimension</code></td><td>string</td><td>Internal only — do NOT send to frontend</td></tr>
+</table>
+
+<h3>POST /behavioral/submit</h3>
+<p class="intro">Person B calls this when student submits all 8 answers. Triggers PQ scoring.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>answers</code></td><td>array</td><td><span class="badge req">REQ</span></td><td>Array of <code>{ question_id, answer_text, time_taken_seconds }</code></td></tr>
+</table>
+<p style="font-size:12px;margin:6px 0 4px"><strong>Response 202:</strong> <code>{ status: "scoring_in_progress", eta_seconds: 15 }</code> — scoring runs async, result posted to Person B via <code>POST /ai/behavioral-result</code></p>
+
+<h3>POST /chat/message</h3>
+<p class="intro">AI chatbot endpoint. Used by Person A's chat widget. RAG over loan policy docs stored in Qdrant.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>message</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Student's question</td></tr>
+<tr><td><code>conversation_id</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>For multi-turn context. Generate UUID on first message.</td></tr>
+<tr><td><code>language</code></td><td>enum</td><td><span class="badge req">REQ</span></td><td><code>en</code> | <code>hi</code> | <code>od</code></td></tr>
+</table>
+<p style="font-size:12px;margin:6px 0 4px"><strong>Response 200:</strong> <code>{ reply, sources: [{ title, snippet }], conversation_id }</code></p>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 5 — PIPELINE SPECS</h2>
+
+<h3>Pipeline 1 — OCR + document parsing</h3>
+<div class="flow"><div class="fnum">1</div><div class="ftext">Receive <code>document.uploaded</code> Kafka event. Extract <code>minio_path</code> and <code>doc_type</code>.</div></div>
+<div class="flow"><div class="fnum">2</div><div class="ftext">Fetch file bytes from MinIO using Python SDK: <code>minio_client.get_object(bucket, minio_path)</code></div></div>
+<div class="flow"><div class="fnum">3</div><div class="ftext">If PDF: convert to images using <code>pdf2image.convert_from_bytes()</code></div></div>
+<div class="flow"><div class="fnum">4</div><div class="ftext">Run PaddleOCR: <code>ocr.ocr(img_array, cls=True)</code> → extract raw text blocks</div></div>
+<div class="flow"><div class="fnum">5</div><div class="ftext">Run LayoutLM or prompt Groq with raw text to extract structured fields per doc_type (see schema below)</div></div>
+<div class="flow"><div class="fnum">6</div><div class="ftext">Compute doc_trust_score: OCR confidence avg × tamper_check × completeness_score</div></div>
+<div class="flow"><div class="fnum">7</div><div class="ftext">POST result to Person B: <code>POST /ai/kyc-result</code></div></div>
+
+<h4>Extracted fields per doc type</h4>
+<table>
+<tr><th>doc_type</th><th>Fields to extract</th></tr>
+<tr><td><code>aadhaar</code></td><td>name, dob, gender, aadhaar_last4, address_state</td></tr>
+<tr><td><code>pan</code></td><td>name, pan_number, dob</td></tr>
+<tr><td><code>marksheet</code></td><td>student_name, institution, year, percentage_or_cgpa, pass_fail</td></tr>
+<tr><td><code>income_cert</code></td><td>holder_name, annual_income, issuing_authority, issue_date</td></tr>
+<tr><td><code>bank_passbook</code></td><td>account_holder_name, account_number_last4, bank_name, ifsc</td></tr>
+<tr><td><code>semester_marksheet</code></td><td>student_name, semester_number, sgpa, result (pass/fail)</td></tr>
+</table>
+
+<h3>Pipeline 2 — Face match</h3>
+<div class="flow"><div class="fnum">1</div><div class="ftext">Triggered when both <code>aadhaar</code> and <code>selfie</code> docs are uploaded for the same user.</div></div>
+<div class="flow"><div class="fnum">2</div><div class="ftext">Fetch both images from MinIO.</div></div>
+<div class="flow"><div class="fnum">3</div><div class="ftext">Detect face in each image using InsightFace: <code>app.get(img)</code> → get 512-dim embedding.</div></div>
+<div class="flow"><div class="fnum">4</div><div class="ftext">Compute cosine similarity between the two embeddings.</div></div>
+<div class="flow"><div class="fnum">5</div><div class="ftext">Threshold: score ≥ 0.85 → <code>face_match_pass: true</code>. Score 0.70–0.84 → flag for manual review. Below 0.70 → fail.</div></div>
+<div class="flow"><div class="fnum">6</div><div class="ftext">Also store face embedding in Qdrant pool for fraud dedup check.</div></div>
+
+<h3>Pipeline 3 — Behavioral PQ engine</h3>
+<h4>Question generation prompt logic</h4>
+<div class="intro">Prompt sent to Groq (Llama 3 70B) includes: student's course, institution tier, home state, family income band, last exam score. LLM generates 8 contextual questions. Mix must be: 3 MCQ situational + 2 MCQ financial literacy + 2 free-text goal/resilience + 1 free-text initiative.</div>
+<table>
+<tr><th>Dimension</th><th>Weight in PQ</th><th>Question type</th><th>What it measures</th></tr>
+<tr><td>Financial responsibility</td><td>20%</td><td>MCQ situational</td><td>Will they prioritise repayment?</td></tr>
+<tr><td>Resilience</td><td>20%</td><td>Free text</td><td>Dropout probability</td></tr>
+<tr><td>Goal clarity</td><td>20%</td><td>Free text</td><td>Employability post-graduation</td></tr>
+<tr><td>Risk awareness</td><td>15%</td><td>MCQ financial literacy</td><td>Do they understand loans?</td></tr>
+<tr><td>Initiative / agency</td><td>15%</td><td>MCQ situational</td><td>Self-driven income trajectory</td></tr>
+<tr><td>Social capital</td><td>10%</td><td>MCQ situational</td><td>Access to job opportunities</td></tr>
+</table>
+<h4>Scoring logic</h4>
+<ul>
+  <li>MCQ: map each option to a score (0, 33, 66, 100) based on rubric defined in <code>app/prompts/mcq_rubric.json</code></li>
+  <li>Free text: send answer to Groq with scoring rubric prompt → extract integer score 0–100 from response</li>
+  <li>Run a rule-based sanity check: if LLM returns score outside 0–100 or non-numeric, re-run once then default to 50</li>
+  <li>PQ = weighted sum of 6 dimension scores using weights above</li>
+  <li>Flag if total time_taken_seconds across all questions &lt; 60 — possible gaming</li>
+</ul>
+
+<h3>Pipeline 4 — Fraud detection</h3>
+<table>
+<tr><th>Check</th><th>How to implement</th><th>Flag condition</th></tr>
+<tr><td>Duplicate PAN</td><td>Call <code>GET /users/check-pan?pan=</code> on Person B API</td><td>Same PAN exists in another application</td></tr>
+<tr><td>Duplicate Aadhaar</td><td>Call <code>GET /users/check-aadhaar?hash=</code> on Person B API</td><td>Same Aadhaar hash in another application</td></tr>
+<tr><td>Face pool dedup</td><td>Search Qdrant face embeddings collection with new embedding, threshold 0.92</td><td>Match found in pool = same person different name</td></tr>
+<tr><td>Income inconsistency</td><td>Compare OCR-extracted income vs stated family_annual_income in profile</td><td>Difference &gt; 40%</td></tr>
+<tr><td>Doc metadata tamper</td><td>Check PDF creation date vs modification date using PyPDF2 metadata</td><td>Modified after creation by &gt; 1 day</td></tr>
+<tr><td>Velocity check</td><td>Call Person B API — how many apps from same mobile/email in last 30 days</td><td>More than 2 applications</td></tr>
+</table>
+<p style="font-size:12px;margin:8px 0 4px">fraud_confidence = (num_flags / total_checks) × 100. If any single check is a hard fail (duplicate PAN/face), set fraud_flag = true regardless of confidence.</p>
+
+<h3>Pipeline 5 — Scholarship matcher (Qdrant RAG)</h3>
+<div class="flow"><div class="fnum">1</div><div class="ftext">On startup, embed all scholarships from <code>data/scholarships/</code> JSON into Qdrant collection <code>scholarships</code> using <code>sentence-transformers/all-MiniLM-L6-v2</code>. Run once, skip if collection already populated.</div></div>
+<div class="flow"><div class="fnum">2</div><div class="ftext">For each application: fetch student profile from Person B. Build profile text: "Student: [course] at [institution], [state], [category], income [band], CGPA [score]"</div></div>
+<div class="flow"><div class="fnum">3</div><div class="ftext">Embed profile text using same model. Query Qdrant: <code>client.search(collection_name="scholarships", query_vector=embedding, limit=10)</code></div></div>
+<div class="flow"><div class="fnum">4</div><div class="ftext">Filter results: deadline must be in future, student must meet category/income/score criteria. Take top 5 after filtering.</div></div>
+<div class="flow"><div class="fnum">5</div><div class="ftext">For each match, generate 1-sentence reason using Groq: "You qualify because your CGPA and SC category match this merit-cum-means scheme."</div></div>
+<div class="flow"><div class="fnum">6</div><div class="ftext">POST to Person B: <code>POST /ai/scholarship-result</code></div></div>
+
+<h3>Pipeline 6 — LangGraph agent orchestrator</h3>
+<div class="intro">Triggered by <code>eligibility.calculated</code> Kafka event. Runs 5 key agents in sequence using LangGraph StateGraph.</div>
+<table>
+<tr><th>Agent</th><th>Input</th><th>Output</th></tr>
+<tr><td>Student profile agent</td><td>user_id → fetch profile</td><td>Structured profile summary for context</td></tr>
+<tr><td>Document verification agent</td><td>doc statuses from Person B</td><td>Doc trust verdict + any flags</td></tr>
+<tr><td>Eligibility eval agent</td><td>composite score + sub-scores</td><td>Score interpretation + band rationale</td></tr>
+<tr><td>Policy compliance agent</td><td>Loan amount + RBI rules (RAG)</td><td>Policy pass/fail flags</td></tr>
+<tr><td>Final approval agent</td><td>All above outputs combined</td><td>Final decision rationale + improvement hints</td></tr>
+</table>
+<p style="font-size:12px;margin:8px 0 4px">Each agent is a LangGraph node. State is a TypedDict passed between nodes. Use <code>add_conditional_edges</code> for the fraud short-circuit (if fraud_flag = true, skip to rejection explanation).</p>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 6 — QDRANT COLLECTIONS</h2>
+<table>
+<tr><th>Collection</th><th>Vector size</th><th>Payload fields</th><th>Used by</th></tr>
+<tr><td><code>scholarships</code></td><td>384 (MiniLM)</td><td>name, amount, state, category, course_type, deadline, source</td><td>Scholarship matcher</td></tr>
+<tr><td><code>loan_policies</code></td><td>384 (MiniLM)</td><td>policy_text, source, section</td><td>Chat assistant RAG + policy agent</td></tr>
+<tr><td><code>face_embeddings</code></td><td>512 (InsightFace)</td><td>user_id, app_id, created_at</td><td>Fraud face pool dedup</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 7 — DEPENDENCIES ON PERSON B</h2>
+<table>
+<tr><th>What Person C needs</th><th>Endpoint / topic</th><th>When</th></tr>
+<tr><td>Student full profile</td><td><code>GET /users/{id}/profile</code></td><td>Before question generation + scholarship matching</td></tr>
+<tr><td>Document MinIO path</td><td><code>GET /documents/{id}/status</code></td><td>Before OCR — needs minio_path field</td></tr>
+<tr><td>PAN duplicate check</td><td><code>GET /users/check-pan?pan=</code></td><td>Fraud pipeline</td></tr>
+<tr><td>Aadhaar duplicate check</td><td><code>GET /users/check-aadhaar?hash=</code></td><td>Fraud pipeline</td></tr>
+<tr><td>Application velocity check</td><td><code>GET /users/{id}/app-count</code></td><td>Fraud pipeline</td></tr>
+<tr><td>Trigger: new document</td><td>Kafka <code>document.uploaded</code></td><td>Starts OCR pipeline</td></tr>
+<tr><td>Trigger: new application</td><td>Kafka <code>app.submitted</code></td><td>Starts fraud + question gen</td></tr>
+<tr><td>Trigger: eligibility done</td><td>Kafka <code>eligibility.calculated</code></td><td>Starts agents + scholarship matcher</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════ -->
+<h2>SECTION 8 — ENVIRONMENT VARIABLES</h2>
+<table>
+<tr><th>Variable</th><th>Example</th><th>Notes</th></tr>
+<tr><td><code>GROQ_API_KEY</code></td><td>gsk_xxxx</td><td>Free tier — 500 tokens/sec on Llama 3 70B</td></tr>
+<tr><td><code>BACKEND_BASE_URL</code></td><td>http://localhost:3000/v1</td><td>Person B's API</td></tr>
+<tr><td><code>KAFKA_BROKERS</code></td><td>localhost:9092</td><td>Same as Person B's compose</td></tr>
+<tr><td><code>KAFKA_GROUP_ID</code></td><td>ai-svc</td><td>Must be different from backend group id</td></tr>
+<tr><td><code>MINIO_ENDPOINT</code></td><td>localhost:9000</td><td></td></tr>
+<tr><td><code>MINIO_ACCESS_KEY</code></td><td>minioadmin</td><td></td></tr>
+<tr><td><code>MINIO_SECRET_KEY</code></td><td>minioadmin</td><td></td></tr>
+<tr><td><code>QDRANT_URL</code></td><td>http://localhost:6333</td><td></td></tr>
+<tr><td><code>REDIS_URL</code></td><td>redis://localhost:6379</td><td>For caching generated questions</td></tr>
+<tr><td><code>INSIGHTFACE_MODEL</code></td><td>buffalo_l</td><td>Best accuracy model</td></tr>
+<tr><td><code>EMBEDDING_MODEL</code></td><td>all-MiniLM-L6-v2</td><td>HuggingFace — download once on startup</td></tr>
+</table>
+
+<hr class="divider">
+
+<h2>SECTION 9 — HACKATHON SHORTCUTS</h2>
+<div class="tip">Use Groq free API instead of running Llama locally — 500 tokens/sec, zero GPU needed. Sign up at console.groq.com.</div>
+<div class="tip">For OCR in the demo: test with a real Aadhaar PDF. PaddleOCR works out of the box — <code>pip install paddlepaddle paddleocr</code>. First run downloads models automatically.</div>
+<div class="tip">Pre-seed Qdrant with 20–30 real scholarship entries (NSP, post-matric, merit-cum-means) before the demo. The matcher works much better with real data.</div>
+<div class="note">For the Rajan demo account: pre-run the behavioral pipeline with Rajan's profile and cache his PQ score (88) in Redis. This way the demo doesn't need to wait 15 seconds for Groq scoring live.</div>
+<div class="warn">InsightFace requires a C++ build environment. Run <code>pip install insightface onnxruntime</code> and test face match on the demo machine at least 2 hours before presentation. It sometimes fails on fresh installs.</div>
+
+<div style="margin-top:24px;padding:12px 16px;background:#EEEDFE;border-radius:6px;font-size:11px;color:#26215C">
+  <strong>Integration checklist for Person C:</strong><br>
+  1. Confirm Person B has <code>GET /users/check-pan</code> and <code>GET /users/check-aadhaar</code> endpoints — these are needed for fraud checks.<br>
+  2. Agree on the exact payload shape for all 5 POST result endpoints before coding.<br>
+  3. Test Kafka consumer independently before connecting to full pipeline.<br>
+  4. Seed Qdrant collections on first startup — write a <code>seed.py</code> script that runs once.<br>
+  5. Keep all Groq prompt templates in <code>app/prompts/</code> — never hardcode prompts in logic files.
+</div>
+</body>
+</html>

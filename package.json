@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "claude-flow": "^3.5.73"
+  }
+}

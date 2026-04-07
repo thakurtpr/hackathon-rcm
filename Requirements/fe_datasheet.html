@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1a1a1a;background:#fff;padding:32px}
+h1{font-size:22px;font-weight:700;color:#0c1e3c;border-bottom:3px solid #185FA5;padding-bottom:10px;margin-bottom:6px}
+.meta{font-size:11px;color:#666;margin-bottom:24px}
+.meta span{margin-right:20px}
+h2{font-size:14px;font-weight:700;color:#fff;background:#0c1e3c;padding:7px 14px;border-radius:5px;margin:26px 0 10px;letter-spacing:.3px}
+h3{font-size:13px;font-weight:700;color:#0c1e3c;margin:16px 0 6px;border-left:3px solid #185FA5;padding-left:8px}
+h4{font-size:12px;font-weight:700;color:#185FA5;margin:12px 0 4px}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12px}
+th{background:#ddeaf7;color:#0c447c;font-weight:700;padding:7px 10px;text-align:left;border:1px solid #b5d4f4}
+td{padding:6px 10px;border:1px solid #dde4f0;vertical-align:top}
+tr:nth-child(even) td{background:#f5f8fd}
+code{background:#f0f4f8;padding:1px 5px;border-radius:3px;font-family:'Courier New',monospace;font-size:11px;color:#c0392b}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.screen{background:#ddeaf7;color:#0c447c}
+.comp{background:#e8f5e8;color:#1a5c1a}
+.state{background:#fff3d4;color:#7a5000}
+.api{background:#fdeedd;color:#7a3800}
+.warn{background:#fde8e8;color:#8b1a1a}
+.tip{background:#e8f5e8;border-left:3px solid #1D9E75;padding:7px 12px;margin:8px 0 14px;font-size:11px;color:#085041;border-radius:0 4px 4px 0}
+.note{background:#fffbe6;border-left:3px solid #f0ad00;padding:7px 12px;margin:8px 0 14px;font-size:11px;color:#5a4000;border-radius:0 4px 4px 0}
+.warn-box{background:#fdeaea;border-left:3px solid #e24b4a;padding:7px 12px;margin:8px 0 14px;font-size:11px;color:#7a1a1a;border-radius:0 4px 4px 0}
+.section-intro{font-size:11px;color:#555;margin-bottom:10px;padding:6px 10px;background:#f5f5f5;border-radius:4px}
+.route{font-family:'Courier New',monospace;font-size:11px;color:#185FA5;font-weight:700}
+.method{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:4px}
+.get-m{background:#dde8fb;color:#1040a0}
+.post-m{background:#dff0e8;color:#0a5c3a}
+.put-m{background:#fff3d4;color:#7a5000}
+ul{padding-left:18px;margin:6px 0}
+li{margin-bottom:3px;font-size:12px}
+.print-btn{position:fixed;top:16px;right:16px;background:#185FA5;color:#fff;border:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;z-index:999}
+.print-btn:hover{background:#0c447c}
+@media print{.print-btn{display:none}body{padding:18px}}
+.flow-step{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.step-num{background:#185FA5;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px}
+.step-text{font-size:12px;color:#333}
+.divider{border:none;border-top:1px solid #d0dff0;margin:20px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.card{border:1px solid #b5d4f4;border-radius:6px;padding:10px 12px;background:#f9fbff}
+.card h4{margin-top:0;color:#0c447c}
+.tag{display:inline-block;background:#e8f5fb;color:#0c447c;border-radius:3px;padding:1px 6px;font-size:10px;font-family:monospace;margin:2px 2px 2px 0}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">Download / Print PDF</button>
+
+<h1>Frontend Engineering Sheet</h1>
+<div class="meta">
+  <span>Project: AI Student Loan &amp; Scholarship System</span>
+  <span>Owner: Person A — Frontend Engineer</span>
+  <span>Stack: React 18 + TypeScript + Tailwind CSS</span>
+  <span>API Base: <code>https://api.loanai.dev/v1</code></span>
+</div>
+<div class="note">This document covers every screen, component, API call, state shape, and edge case Person A needs to build the complete frontend. Person B owns all API endpoints. Agree on the OpenAPI spec before building. Mock all APIs using MSW during development so you are never blocked by backend.</div>
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 1 — TECH STACK &amp; PROJECT SETUP</h2>
+
+<div class="grid2">
+<div class="card">
+<h4>Core dependencies</h4>
+<div class="tag">react@18</div><div class="tag">typescript</div><div class="tag">vite</div>
+<div class="tag">tailwindcss</div><div class="tag">react-router-dom@6</div>
+<div class="tag">zustand</div><div class="tag">@tanstack/react-query</div>
+<div class="tag">axios</div><div class="tag">socket.io-client</div>
+<div class="tag">react-hook-form</div><div class="tag">zod</div>
+<div class="tag">framer-motion</div><div class="tag">recharts</div>
+</div>
+<div class="card">
+<h4>UI &amp; utilities</h4>
+<div class="tag">shadcn/ui</div><div class="tag">lucide-react</div>
+<div class="tag">react-webcam</div><div class="tag">react-dropzone</div>
+<div class="tag">react-hot-toast</div><div class="tag">date-fns</div>
+<div class="tag">msw (mock service worker)</div>
+<div class="tag">vitest + testing-library</div>
+<div class="tag">i18next (Hindi/Odia/English)</div>
+</div>
+</div>
+
+<h3>Folder structure</h3>
+<table>
+<tr><th>Path</th><th>Contains</th></tr>
+<tr><td><code>src/pages/</code></td><td>One file per route/screen</td></tr>
+<tr><td><code>src/components/</code></td><td>Reusable UI components</td></tr>
+<tr><td><code>src/components/chatbot/</code></td><td>All chatbot bubble, card, input components</td></tr>
+<tr><td><code>src/components/assessment/</code></td><td>Behavioral question cards</td></tr>
+<tr><td><code>src/store/</code></td><td>Zustand stores — one per domain</td></tr>
+<tr><td><code>src/api/</code></td><td>Axios instances + all API call functions</td></tr>
+<tr><td><code>src/hooks/</code></td><td>Custom hooks (useWebSocket, useCamera, useFileUpload)</td></tr>
+<tr><td><code>src/types/</code></td><td>TypeScript interfaces matching backend response shapes</td></tr>
+<tr><td><code>src/mocks/</code></td><td>MSW handlers for all API endpoints</td></tr>
+<tr><td><code>src/i18n/</code></td><td>Translation JSON files (en, hi, od)</td></tr>
+</table>
+
+<div class="tip">Run <code>npx msw init public/</code> on Day 1. Write mock handlers for every API endpoint before Person B's server is ready. This keeps you unblocked for the full hackathon.</div>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 2 — ROUTING MAP</h2>
+<div class="section-intro">All routes and their access rules. Unauthenticated users are redirected to /login.</div>
+
+<table>
+<tr><th>Route</th><th>Screen</th><th>Auth?</th><th>Notes</th></tr>
+<tr><td><span class="route">/</span></td><td>Landing / intent selection</td><td>No</td><td>First screen after open — asks Loan / Scholarship / Both</td></tr>
+<tr><td><span class="route">/register</span></td><td>Registration</td><td>No</td><td>Basic details + OTP</td></tr>
+<tr><td><span class="route">/login</span></td><td>Login</td><td>No</td><td></td></tr>
+<tr><td><span class="route">/onboarding</span></td><td>Chatbot onboarding wizard</td><td>Yes</td><td>Multi-step — blocks nav until complete</td></tr>
+<tr><td><span class="route">/onboarding/kyc</span></td><td>Document upload + face match</td><td>Yes</td><td>Camera access required</td></tr>
+<tr><td><span class="route">/assessment</span></td><td>Behavioral PQ assessment</td><td>Yes</td><td>One question per screen, timed</td></tr>
+<tr><td><span class="route">/application/status</span></td><td>Live application tracker</td><td>Yes</td><td>WebSocket driven</td></tr>
+<tr><td><span class="route">/application/result</span></td><td>Score result + explainability</td><td>Yes</td><td>Shown after eligibility.calculated event</td></tr>
+<tr><td><span class="route">/dashboard</span></td><td>Student dashboard</td><td>Yes</td><td>Semester tracker, notifications, chat</td></tr>
+<tr><td><span class="route">/dashboard/semester/:n</span></td><td>Semester gate — marksheet upload</td><td>Yes</td><td>Unlocked when gate triggered</td></tr>
+<tr><td><span class="route">/scholarships</span></td><td>Matched scholarships list</td><td>Yes</td><td></td></tr>
+<tr><td><span class="route">/admin</span></td><td>Admin dashboard</td><td>Admin role</td><td>Separate layout</td></tr>
+<tr><td><span class="route">/admin/applications</span></td><td>Application queue</td><td>Admin role</td><td>Filter by status, fraud flag</td></tr>
+<tr><td><span class="route">/admin/application/:id</span></td><td>Single application detail</td><td>Admin role</td><td>Full score breakdown + audit trail</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 3 — SCREEN BY SCREEN SPEC</h2>
+
+<!-- SCREEN 1 -->
+<h3>Screen 1 — Landing / Intent Selection</h3>
+<p class="section-intro">First thing student sees. Single question. No login required.</p>
+<ul>
+  <li>3 large card buttons: "I need a Loan", "I need a Scholarship", "I need Both"</li>
+  <li>On click → store selection in Zustand <code>useIntentStore</code> → navigate to <code>/register</code></li>
+  <li>Language selector top-right: English / Hindi / Odia</li>
+  <li>Brief 1-line description under each card explaining what it means</li>
+</ul>
+<div class="tip">This is your demo opener. Make it visually bold. Full-viewport centered layout, large cards, no clutter.</div>
+
+<!-- SCREEN 2 -->
+<h3>Screen 2 — Registration</h3>
+<p class="section-intro">Collects name, mobile, email, DOB, password. Sends OTP.</p>
+<h4>Form fields + validation (react-hook-form + zod)</h4>
+<table>
+<tr><th>Field</th><th>Validation</th><th>Error message</th></tr>
+<tr><td>Full name</td><td>Min 3 chars, letters only</td><td>"Enter your full name"</td></tr>
+<tr><td>Mobile</td><td>Exactly 10 digits, starts with 6-9</td><td>"Enter a valid Indian mobile number"</td></tr>
+<tr><td>Email</td><td>RFC email format</td><td>"Enter a valid email"</td></tr>
+<tr><td>Date of birth</td><td>Must be 16+ years from today</td><td>"You must be at least 16 years old"</td></tr>
+<tr><td>Password</td><td>Min 8 chars, 1 number, 1 special char</td><td>"Password too weak"</td></tr>
+<tr><td>Confirm password</td><td>Must match password</td><td>"Passwords do not match"</td></tr>
+</table>
+<h4>API calls</h4>
+<table>
+<tr><th>Action</th><th>Method + Endpoint</th><th>On success</th><th>On error</th></tr>
+<tr><td>Submit form</td><td><span class="method post-m">POST</span><code>/auth/register</code></td><td>Show OTP input screen</td><td>Show toast with server message</td></tr>
+<tr><td>Verify OTP</td><td><span class="method post-m">POST</span><code>/auth/verify-otp</code></td><td>Store JWT → navigate to <code>/onboarding</code></td><td>"Invalid OTP" inline error</td></tr>
+<tr><td>Resend OTP</td><td><span class="method post-m">POST</span><code>/auth/register</code></td><td>Reset 30s countdown</td><td>Toast error</td></tr>
+</table>
+<div class="warn-box">OTP screen: show 30-second countdown before enabling Resend. Disable submit button while request is in flight. Never show raw error objects — always map to user-friendly messages.</div>
+
+<!-- SCREEN 3 -->
+<h3>Screen 3 — Chatbot Onboarding Wizard</h3>
+<p class="section-intro">The core differentiator UI. Feels like a WhatsApp conversation, not a form. Each question appears as a chat bubble. Student replies by typing, selecting a card, or uploading a file.</p>
+
+<h4>Chatbot conversation flow — exact sequence</h4>
+<div class="flow-step"><div class="step-num">1</div><div class="step-text">Bot: "Hi [name]! I'm your loan assistant. Let's get started. What's your current course?" → Text input reply</div></div>
+<div class="flow-step"><div class="step-num">2</div><div class="step-text">Bot: "Which institution are you studying at?" → Text input with autocomplete from institutions list API</div></div>
+<div class="flow-step"><div class="step-num">3</div><div class="step-text">Bot: "What year are you in?" → Card selection (Year 1 / 2 / 3 / 4 / 5)</div></div>
+<div class="flow-step"><div class="step-num">4</div><div class="step-text">Bot: "What was your last exam score?" → Number input (0–100)</div></div>
+<div class="flow-step"><div class="step-num">5</div><div class="step-text">Bot: "What is your family's annual income?" → Dropdown bands (Under ₹1L / ₹1–3L / ₹3–6L / ₹6–10L / Above ₹10L)</div></div>
+<div class="flow-step"><div class="step-num">6</div><div class="step-text">Bot: "How much loan are you applying for?" → Number input with slider (₹50,000 – ₹20,00,000)</div></div>
+<div class="flow-step"><div class="step-num">7</div><div class="step-text">Bot: "Please enter your Aadhaar number" → Masked input (XXXX-XXXX-XXXX format)</div></div>
+<div class="flow-step"><div class="step-num">8</div><div class="step-text">Bot: "Please enter your PAN number" → Input with format validation (ABCDE1234F)</div></div>
+<div class="flow-step"><div class="step-num">9</div><div class="step-text">Bot: "Please share your bank account details for disbursal" → IFSC + account number inputs</div></div>
+<div class="flow-step"><div class="step-num">10</div><div class="step-text">Bot: "Do you have a co-applicant (parent/guardian)?" → Yes/No cards → if Yes, collect name + income</div></div>
+<div class="flow-step"><div class="step-num">11</div><div class="step-text">Bot: Summary card showing all collected data → "Does everything look correct?" → Confirm / Edit</div></div>
+<div class="flow-step"><div class="step-num">12</div><div class="step-text">On confirm → PUT /users/{id}/profile → POST /applications → navigate to /onboarding/kyc</div></div>
+
+<h4>API calls for this screen</h4>
+<table>
+<tr><th>Action</th><th>Endpoint</th><th>When</th></tr>
+<tr><td>Save profile data</td><td><span class="method put-m">PUT</span><code>/users/{user_id}/profile</code></td><td>After step 11 confirm</td></tr>
+<tr><td>Create application</td><td><span class="method post-m">POST</span><code>/applications</code></td><td>Immediately after profile save</td></tr>
+<tr><td>Institution autocomplete</td><td><span class="method get-m">GET</span><code>/institutions/search?q=</code></td><td>On each keystroke (debounced 300ms)</td></tr>
+</table>
+<div class="tip">Store every chatbot answer in Zustand <code>useOnboardingStore</code> as user types. If they refresh or navigate back, restore state from the store. Never lose data mid-wizard.</div>
+<div class="note">Chatbot animation: each new bubble slides in from the bottom with a 200ms ease. Show a typing indicator (3 dots) for 600ms before each bot message appears. This makes it feel alive.</div>
+
+<!-- SCREEN 4 -->
+<h3>Screen 4 — KYC Document Upload</h3>
+<p class="section-intro">Upload Aadhaar, PAN, selfie, marksheet, income cert, bank passbook. Face match result shown live.</p>
+
+<h4>Document upload cards — one card per doc type</h4>
+<table>
+<tr><th>Document</th><th>Accepted formats</th><th>Max size</th><th>Special behaviour</th></tr>
+<tr><td>Aadhaar card</td><td>JPG, PNG, PDF</td><td>5MB</td><td>Show Aadhaar number masked after upload</td></tr>
+<tr><td>PAN card</td><td>JPG, PNG, PDF</td><td>5MB</td><td>—</td></tr>
+<tr><td>Selfie / live photo</td><td>JPG only</td><td>2MB</td><td>Open webcam via <code>react-webcam</code>. Capture button. No file upload — camera only.</td></tr>
+<tr><td>Latest marksheet</td><td>JPG, PNG, PDF</td><td>10MB</td><td>—</td></tr>
+<tr><td>Income certificate / ITR</td><td>PDF only</td><td>10MB</td><td>—</td></tr>
+<tr><td>Bank passbook (front page)</td><td>JPG, PNG, PDF</td><td>5MB</td><td>—</td></tr>
+<tr><td>Caste certificate</td><td>JPG, PNG, PDF</td><td>5MB</td><td>Only show if category is SC/ST/OBC/EWS</td></tr>
+</table>
+
+<h4>Face match UX flow</h4>
+<ul>
+  <li>After both Aadhaar and selfie are uploaded, show "Verifying face match..." spinner</li>
+  <li>Poll <code>GET /documents/{user_id}/status</code> every 3 seconds until Aadhaar status = <code>verified</code></li>
+  <li>On verified: show green checkmark + confidence score ("Face match: 94% — Verified")</li>
+  <li>If face_match_pass = false: show red warning + "Please retake your selfie in good lighting" + retake button</li>
+  <li>After 3 failed retakes: show "Our team will review your photo manually" — allow proceeding</li>
+</ul>
+
+<h4>API calls</h4>
+<table>
+<tr><th>Action</th><th>Endpoint</th><th>Payload</th></tr>
+<tr><td>Upload each document</td><td><span class="method post-m">POST</span><code>/documents/upload</code></td><td>FormData: user_id, doc_type, file</td></tr>
+<tr><td>Poll doc status</td><td><span class="method get-m">GET</span><code>/documents/{user_id}/status</code></td><td>Every 3s until all verified</td></tr>
+<tr><td>DigiLocker connect</td><td><span class="method get-m">GET</span><code>/auth/digilocker/init</code></td><td>Opens redirect_url in new tab</td></tr>
+</table>
+<div class="tip">Show overall KYC progress bar (e.g., "4 of 6 documents verified"). Student can proceed once mandatory docs (Aadhaar + PAN + selfie + marksheet) are verified — income cert and passbook can be async.</div>
+
+<!-- SCREEN 5 -->
+<h3>Screen 5 — Behavioral Assessment</h3>
+<p class="section-intro">8 questions, one per screen. Mix of MCQ and free text. Timed. Clean card UI — not a form.</p>
+
+<h4>Assessment UI spec</h4>
+<ul>
+  <li>Full-screen card layout. Question text large (18px). No distractions.</li>
+  <li>Top bar: question counter ("Question 3 of 8") + progress bar</li>
+  <li>Timer shown only for free-text questions (2 min per question). Hide timer for MCQ.</li>
+  <li>MCQ: 4 option cards. Click to select, highlight selected. Next button activates on selection.</li>
+  <li>Free text: large textarea, character count shown (min 80 chars to enable Next)</li>
+  <li>No back navigation — once submitted a question cannot be changed (prevents gaming)</li>
+  <li>On final question submit → loading screen "AI is evaluating your responses..." with animated progress (fake 8-second wait to set expectation)</li>
+</ul>
+
+<h4>API calls</h4>
+<table>
+<tr><th>Action</th><th>Endpoint</th><th>Notes</th></tr>
+<tr><td>Fetch questions</td><td><span class="method get-m">GET</span><code>/behavioral/questions?app_id=</code></td><td>Called once on screen mount. Returns array of 8 question objects.</td></tr>
+<tr><td>Submit all answers</td><td><span class="method post-m">POST</span><code>/behavioral/submit</code></td><td>Submit all 8 answers at once on final question. Include time_taken_seconds per question.</td></tr>
+</table>
+
+<h4>Question object shape (from Person C's API via Person B)</h4>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>question_id</code></td><td>string</td><td></td></tr>
+<tr><td><code>question_text</code></td><td>string</td><td>Display this</td></tr>
+<tr><td><code>type</code></td><td><code>mcq</code> | <code>free_text</code></td><td>Determines input component shown</td></tr>
+<tr><td><code>options</code></td><td>array | null</td><td>4 strings for MCQ, null for free_text</td></tr>
+<tr><td><code>dimension</code></td><td>string</td><td>Do NOT show to student — internal only</td></tr>
+</table>
+
+<h4>Answer submission shape</h4>
+<table>
+<tr><th>Field</th><th>Type</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td></tr>
+<tr><td><code>answers</code></td><td>Array of <code>{ question_id, answer_text, time_taken_seconds }</code></td></tr>
+</table>
+
+<!-- SCREEN 6 -->
+<h3>Screen 6 — Live Application Status Tracker</h3>
+<p class="section-intro">The most technically interesting screen. Real-time pipeline visualization driven by WebSocket.</p>
+
+<h4>Pipeline stages to display</h4>
+<table>
+<tr><th>Stage</th><th>Status states</th><th>Icon/colour</th></tr>
+<tr><td>Application submitted</td><td>done</td><td>Green check</td></tr>
+<tr><td>Documents verified</td><td>pending / done / failed</td><td>Spinner / check / red X</td></tr>
+<tr><td>Behavioral assessment</td><td>pending / done</td><td>Spinner / check</td></tr>
+<tr><td>Fraud check</td><td>pending / done / flagged</td><td>Spinner / check / warning</td></tr>
+<tr><td>Eligibility scoring</td><td>pending / done</td><td>Spinner / check</td></tr>
+<tr><td>Final decision</td><td>pending / approved / rejected / review</td><td>Spinner / green / red / amber</td></tr>
+</table>
+
+<h4>WebSocket connection</h4>
+<ul>
+  <li>Connect to <code>WS /applications/{app_id}/live</code> on screen mount using <code>socket.io-client</code></li>
+  <li>Listen for <code>state_change</code> event → update Zustand <code>useApplicationStore</code> → re-render stage list</li>
+  <li>On WebSocket disconnect: auto-reconnect with exponential backoff (1s, 2s, 4s, 8s)</li>
+  <li>If WS unavailable: fall back to polling <code>GET /applications/{app_id}/status</code> every 5 seconds</li>
+  <li>Show "Live" green dot in top corner when WS is connected, grey dot when polling</li>
+</ul>
+<div class="note">Estimated time display: show "Usually takes 3–5 minutes" on first load. Update to "Almost done..." when fraud_check stage completes.</div>
+
+<!-- SCREEN 7 -->
+<h3>Screen 7 — Result + Explainability Screen</h3>
+<p class="section-intro">Shown after final decision. The most emotionally important screen — design it carefully.</p>
+
+<h4>Layout — approved case</h4>
+<ul>
+  <li>Large green hero banner: "Congratulations! Your loan has been approved."</li>
+  <li>Approved amount, interest rate band, and first disbursal date prominently shown</li>
+  <li>Score breakdown radar chart (recharts RadarChart) — 5 dimensions visualized</li>
+  <li>PQ badge prominently shown: "Potential Quotient: 84 / 100"</li>
+  <li>If PQ override was applied: show special badge "Approved by Potential — your drive made the difference"</li>
+  <li>Semester disbursal schedule table — all semesters with dates and amounts</li>
+  <li>Matched scholarships section below — cards with scholarship name, amount, apply button</li>
+</ul>
+
+<h4>Layout — rejected case</h4>
+<ul>
+  <li>Amber (not red) banner: "Your application needs more time." — avoid harsh language</li>
+  <li>Same score breakdown radar chart</li>
+  <li>Improvement hints section — up to 3 cards, each with a specific action ("Add a co-applicant to boost your financial score by ~18 points")</li>
+  <li>Re-application date shown ("You can re-apply after 90 days")</li>
+  <li>Scholarship suggestions even on rejection — they may still qualify for scholarships</li>
+</ul>
+
+<h4>API calls</h4>
+<table>
+<tr><th>Action</th><th>Endpoint</th></tr>
+<tr><td>Fetch score breakdown</td><td><span class="method get-m">GET</span><code>/eligibility/{app_id}</code></td></tr>
+<tr><td>Fetch disbursal schedule</td><td><span class="method get-m">GET</span><code>/disbursal/{app_id}/schedule</code></td></tr>
+<tr><td>Fetch matched scholarships</td><td><span class="method get-m">GET</span><code>/scholarships/{app_id}/matches</code></td></tr>
+</table>
+
+<!-- SCREEN 8 -->
+<h3>Screen 8 — Student Dashboard</h3>
+<p class="section-intro">Home base after approval. Semester tracker, notifications, AI chat widget.</p>
+
+<h4>Dashboard sections</h4>
+<table>
+<tr><th>Section</th><th>Content</th><th>API</th></tr>
+<tr><td>Loan summary card</td><td>Approved amount, disbursed so far, remaining, next disbursal date</td><td><code>GET /applications/{id}</code></td></tr>
+<tr><td>Semester timeline</td><td>Visual timeline — completed semesters green, current amber, future grey. Each shows amount + status</td><td><code>GET /disbursal/{id}/schedule</code></td></tr>
+<tr><td>Current semester gate</td><td>If gate triggered: upload marksheet CTA card with deadline countdown</td><td><code>GET /disbursal/{id}/schedule</code></td></tr>
+<tr><td>Scholarships panel</td><td>Applied scholarships + status</td><td><code>GET /scholarships/{id}/matches</code></td></tr>
+<tr><td>Notifications</td><td>Last 5 events from audit trail</td><td><code>GET /audit/{id}/trail</code></td></tr>
+<tr><td>AI chat widget</td><td>Floating bottom-right button. Opens chat drawer. Calls chat API.</td><td><code>POST /chat/message</code></td></tr>
+</table>
+
+<!-- SCREEN 9 -->
+<h3>Screen 9 — Semester Gate: Marksheet Upload</h3>
+<p class="section-intro">Triggered when backend fires semester gate. Student must upload marksheet to unlock next disbursal.</p>
+<ul>
+  <li>Deadline countdown timer shown prominently (e.g., "Upload within 14 days to receive your next payment")</li>
+  <li>Drag-and-drop upload zone for marksheet PDF/image</li>
+  <li>After upload: show "AI is verifying your marksheet..." spinner</li>
+  <li>Poll <code>GET /documents/{user_id}/status</code> every 3s for this semester's marksheet</li>
+  <li>On verified + pass: show "Semester N verified! ₹X will be disbursed within 2 working days"</li>
+  <li>On SGPA too low: show counselor outreach card — "We noticed your score is lower than expected. A counselor will reach out within 48 hours." Never say "rejected".</li>
+</ul>
+<h4>API calls</h4>
+<table>
+<tr><th>Action</th><th>Endpoint</th></tr>
+<tr><td>Submit marksheet</td><td><span class="method post-m">POST</span><code>/semester-gate/submit-marksheet</code></td></tr>
+<tr><td>Poll verification</td><td><span class="method get-m">GET</span><code>/documents/{user_id}/status</code></td></tr>
+</table>
+
+<!-- SCREEN 10 -->
+<h3>Screen 10 — Admin Dashboard</h3>
+<p class="section-intro">For hackathon judges — show this as the "operator view".</p>
+
+<h4>Admin screens needed</h4>
+<table>
+<tr><th>Screen</th><th>Key content</th><th>API</th></tr>
+<tr><td>Applications queue</td><td>Table: name, status, composite score, PQ score, fraud flag, date. Filter by status.</td><td><code>GET /applications/list</code></td></tr>
+<tr><td>Application detail</td><td>Full profile + score breakdown + audit trail + fraud reasons + explainability text</td><td><code>GET /applications/{id}</code> + <code>GET /audit/{id}/trail</code></td></tr>
+<tr><td>Fraud flagged</td><td>Red-tagged applications with fraud confidence score and reasons</td><td>Filter on applications list</td></tr>
+<tr><td>Score analytics</td><td>Bar chart: approved vs rejected vs review. Average PQ score. PQ override count.</td><td><code>GET /analytics/summary</code></td></tr>
+</table>
+<div class="tip">The fraud confidence meter is your showpiece for judges — a live gauge (0–100) with the AI's fraud reasons listed alongside. Use recharts GaugeChart or a custom SVG arc.</div>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 4 — GLOBAL STATE (ZUSTAND STORES)</h2>
+
+<table>
+<tr><th>Store</th><th>State held</th><th>Used by</th></tr>
+<tr><td><code>useAuthStore</code></td><td>access_token, refresh_token, user_id, role, intent, isAuthenticated</td><td>Every screen</td></tr>
+<tr><td><code>useIntentStore</code></td><td>intent: 'loan'|'scholarship'|'both'</td><td>Landing, register, onboarding</td></tr>
+<tr><td><code>useOnboardingStore</code></td><td>All chatbot answers collected step by step, current_step, is_complete</td><td>Onboarding wizard</td></tr>
+<tr><td><code>useApplicationStore</code></td><td>app_id, status, score_breakdown, pipeline_stages, disbursal_schedule</td><td>Status tracker, dashboard, result</td></tr>
+<tr><td><code>useAssessmentStore</code></td><td>questions[], answers[], current_question_index, time_per_question[]</td><td>Assessment screen</td></tr>
+<tr><td><code>useDocumentStore</code></td><td>doc statuses: {[doc_type]: 'pending'|'verified'|'rejected'}</td><td>KYC screen</td></tr>
+<tr><td><code>useChatStore</code></td><td>messages[], isOpen, isTyping</td><td>Chat widget (all screens)</td></tr>
+</table>
+<div class="note">Persist <code>useAuthStore</code> and <code>useOnboardingStore</code> to sessionStorage using Zustand persist middleware. This prevents data loss on page refresh during the onboarding wizard — critical for hackathon demo reliability.</div>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 5 — API LAYER</h2>
+
+<h3>Axios setup (<code>src/api/client.ts</code>)</h3>
+<ul>
+  <li>Base URL from <code>VITE_API_BASE_URL</code> env variable</li>
+  <li>Request interceptor: attach <code>Authorization: Bearer {token}</code> from <code>useAuthStore</code></li>
+  <li>Response interceptor: on 401 → call <code>POST /auth/refresh</code> → retry original request once → if refresh fails, logout + redirect to /login</li>
+  <li>Response interceptor: on 500 → show generic toast "Something went wrong. Please try again."</li>
+  <li>Never expose raw axios errors to the UI — always transform to <code>{ message, code }</code></li>
+</ul>
+
+<h3>Complete API call inventory</h3>
+<table>
+<tr><th>Function name</th><th>Method</th><th>Endpoint</th><th>Used in</th></tr>
+<tr><td><code>registerUser</code></td><td>POST</td><td>/auth/register</td><td>Register screen</td></tr>
+<tr><td><code>verifyOtp</code></td><td>POST</td><td>/auth/verify-otp</td><td>Register screen</td></tr>
+<tr><td><code>loginUser</code></td><td>POST</td><td>/auth/login</td><td>Login screen</td></tr>
+<tr><td><code>refreshToken</code></td><td>POST</td><td>/auth/refresh</td><td>Axios interceptor</td></tr>
+<tr><td><code>initDigiLocker</code></td><td>GET</td><td>/auth/digilocker/init</td><td>KYC screen</td></tr>
+<tr><td><code>updateProfile</code></td><td>PUT</td><td>/users/{id}/profile</td><td>Onboarding wizard</td></tr>
+<tr><td><code>getProfile</code></td><td>GET</td><td>/users/{id}/profile</td><td>Dashboard</td></tr>
+<tr><td><code>uploadDocument</code></td><td>POST</td><td>/documents/upload</td><td>KYC screen</td></tr>
+<tr><td><code>getDocumentStatus</code></td><td>GET</td><td>/documents/{id}/status</td><td>KYC screen, semester gate</td></tr>
+<tr><td><code>createApplication</code></td><td>POST</td><td>/applications</td><td>Onboarding wizard</td></tr>
+<tr><td><code>getApplication</code></td><td>GET</td><td>/applications/{id}</td><td>Status, dashboard, result</td></tr>
+<tr><td><code>getApplicationStatus</code></td><td>GET</td><td>/applications/{id}/status</td><td>Status tracker (fallback poll)</td></tr>
+<tr><td><code>getBehavioralQuestions</code></td><td>GET</td><td>/behavioral/questions</td><td>Assessment screen</td></tr>
+<tr><td><code>submitBehavioralAnswers</code></td><td>POST</td><td>/behavioral/submit</td><td>Assessment screen</td></tr>
+<tr><td><code>getEligibilityScore</code></td><td>GET</td><td>/eligibility/{id}</td><td>Result screen</td></tr>
+<tr><td><code>getDisbursalSchedule</code></td><td>GET</td><td>/disbursal/{id}/schedule</td><td>Result screen, dashboard</td></tr>
+<tr><td><code>getMatchedScholarships</code></td><td>GET</td><td>/scholarships/{id}/matches</td><td>Result screen, dashboard</td></tr>
+<tr><td><code>submitMarksheet</code></td><td>POST</td><td>/semester-gate/submit-marksheet</td><td>Semester gate screen</td></tr>
+<tr><td><code>getAuditTrail</code></td><td>GET</td><td>/audit/{id}/trail</td><td>Dashboard, admin</td></tr>
+<tr><td><code>sendChatMessage</code></td><td>POST</td><td>/chat/message</td><td>Chat widget</td></tr>
+<tr><td><code>getAdminApplications</code></td><td>GET</td><td>/admin/applications</td><td>Admin dashboard</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 6 — KEY COMPONENTS</h2>
+
+<table>
+<tr><th>Component</th><th>Props / behaviour</th><th>Notes</th></tr>
+<tr><td><code>ChatBubble</code></td><td>sender: 'bot'|'user', message, timestamp</td><td>Different bg per sender. Bot has avatar.</td></tr>
+<tr><td><code>ChatInputBar</code></td><td>onSubmit, inputType: 'text'|'card_select'|'number'|'file'</td><td>Renders correct input based on type</td></tr>
+<tr><td><code>DocumentCard</code></td><td>docType, status, onUpload, onRetake</td><td>Upload zone + status indicator</td></tr>
+<tr><td><code>FaceMatchResult</code></td><td>score, passed</td><td>Animated confidence meter</td></tr>
+<tr><td><code>QuestionCard</code></td><td>question, type, options, onAnswer</td><td>Full-screen card, no nav chrome</td></tr>
+<tr><td><code>PipelineTracker</code></td><td>stages[], currentStage</td><td>Vertical stepper. WS-driven.</td></tr>
+<tr><td><code>ScoreRadar</code></td><td>scores: {[dimension]: number}</td><td>recharts RadarChart wrapper</td></tr>
+<tr><td><code>PQBadge</code></td><td>score, overrideApplied</td><td>Special styling if PQ override flipped decision</td></tr>
+<tr><td><code>SemesterTimeline</code></td><td>schedule[]</td><td>Horizontal timeline with status dots</td></tr>
+<tr><td><code>FraudGauge</code></td><td>confidence: number, reasons: string[]</td><td>Admin only. SVG arc gauge.</td></tr>
+<tr><td><code>ChatWidget</code></td><td>Fixed bottom-right. Expands on click.</td><td>Persists across all pages via layout</td></tr>
+<tr><td><code>LanguageSwitcher</code></td><td>langs: ['en','hi','od']</td><td>Calls i18n.changeLanguage</td></tr>
+<tr><td><code>ProtectedRoute</code></td><td>role?: 'student'|'admin'</td><td>Redirects if not authed or wrong role</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 7 — EDGE CASES &amp; ERROR HANDLING</h2>
+
+<table>
+<tr><th>Scenario</th><th>What to show</th></tr>
+<tr><td>Face match fails 3 times</td><td>"Manual review will be done. You may proceed." — allow continuing</td></tr>
+<tr><td>Document upload fails (network)</td><td>Toast: "Upload failed. Please try again." — retry button on card</td></tr>
+<tr><td>Assessment timer runs out on free-text</td><td>Auto-submit whatever is typed (even if under 80 chars)</td></tr>
+<tr><td>WebSocket disconnects mid-tracking</td><td>Show grey "Reconnecting..." badge. Fall back to polling silently.</td></tr>
+<tr><td>Application stuck in a state for 10+ mins</td><td>Show "This is taking longer than usual. We'll notify you." + CTA to dashboard</td></tr>
+<tr><td>Student is a minor (&lt;18)</td><td>Immediately show co-applicant required card after DOB input in onboarding step 1</td></tr>
+<tr><td>Scholarship deadline passed</td><td>Show strikethrough + "Deadline passed" badge. Never silently hide it.</td></tr>
+<tr><td>Session expired mid-wizard</td><td>Persist wizard state to sessionStorage. On re-login, restore and resume from last step.</td></tr>
+<tr><td>DigiLocker popup blocked</td><td>Show instruction banner: "Please allow popups for this site and try again."</td></tr>
+<tr><td>Fraud flag on application</td><td>Student sees: "Your application is under manual review." Never reveal fraud reason to student.</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ════════════════════════════════ -->
+<h2>SECTION 8 — ENVIRONMENT &amp; BUILD</h2>
+
+<table>
+<tr><th>Variable</th><th>Value (dev)</th><th>Notes</th></tr>
+<tr><td><code>VITE_API_BASE_URL</code></td><td>http://localhost:3000/v1</td><td>Person B's local server</td></tr>
+<tr><td><code>VITE_WS_URL</code></td><td>ws://localhost:3000</td><td>WebSocket base</td></tr>
+<tr><td><code>VITE_USE_MOCKS</code></td><td>true</td><td>Enables MSW mock service worker</td></tr>
+<tr><td><code>VITE_APP_ENV</code></td><td>development</td><td></td></tr>
+</table>
+
+<div class="tip">
+  <strong>Demo prep checklist:</strong><br>
+  1. Pre-load a demo student account ("Rajan, B.Com, 60%, rural Odisha") — PQ score 88, borderline financial score that gets PQ overridden to approved.<br>
+  2. Have the admin dashboard open in a second tab showing the fraud gauge and application queue.<br>
+  3. Make sure the face match webcam works on the demo machine — test this 30 mins before presentation.<br>
+  4. Set <code>VITE_USE_MOCKS=false</code> for the live demo so real API calls happen.
+</div>
+
+<div style="margin-top:24px;padding:12px 16px;background:#ddeaf7;border-radius:6px;font-size:11px;color:#0c447c;">
+  <strong>Shared contract reminder:</strong> Every API call in this sheet must match the exact endpoint, method, and field names in Person B's backend datasheet. If anything changes, update the shared OpenAPI spec first — never make a unilateral change on either side.
+</div>
+
+</body>
+</html>

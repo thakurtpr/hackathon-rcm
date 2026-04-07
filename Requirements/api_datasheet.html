@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; padding: 32px; }
+  h1 { font-size: 22px; font-weight: 700; color: #0c1e3c; border-bottom: 3px solid #1D9E75; padding-bottom: 10px; margin-bottom: 6px; }
+  .meta { font-size: 11px; color: #666; margin-bottom: 28px; }
+  .meta span { margin-right: 20px; }
+  h2 { font-size: 15px; font-weight: 700; color: #fff; background: #0c1e3c; padding: 7px 14px; border-radius: 5px; margin: 28px 0 10px; letter-spacing: 0.3px; }
+  h3 { font-size: 13px; font-weight: 700; color: #0c1e3c; margin: 18px 0 6px; border-left: 3px solid #1D9E75; padding-left: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 12px; }
+  th { background: #e8f5f0; color: #085041; font-weight: 700; padding: 7px 10px; text-align: left; border: 1px solid #b0ddd0; }
+  td { padding: 6px 10px; border: 1px solid #dde8e4; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7fcfa; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+  .post { background: #dff0e8; color: #0a5c3a; }
+  .get { background: #dde8fb; color: #1040a0; }
+  .put { background: #fff3d4; color: #7a5000; }
+  .del { background: #fde8e8; color: #8b1a1a; }
+  .req { background: #fdeedd; color: #7a3800; }
+  .opt { background: #f0f0f0; color: #555; }
+  code { background: #f0f4f8; padding: 1px 5px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 11px; color: #c0392b; }
+  .url { font-family: 'Courier New', monospace; font-size: 12px; color: #185FA5; font-weight: 700; }
+  .desc { color: #444; font-size: 11px; margin-bottom: 6px; }
+  .note { background: #fffbe6; border-left: 3px solid #f0ad00; padding: 7px 12px; margin: 8px 0 14px; font-size: 11px; color: #5a4000; border-radius: 0 4px 4px 0; }
+  .section-intro { font-size: 11px; color: #555; margin-bottom: 10px; padding: 6px 10px; background: #f5f5f5; border-radius: 4px; }
+  .event-table td:first-child { font-family: 'Courier New', monospace; font-size: 11px; color: #7a3800; }
+  .owner-b { color: #085041; font-weight: 700; }
+  .owner-c { color: #3C3489; font-weight: 700; }
+  .owner-a { color: #185FA5; font-weight: 700; }
+  .print-btn { position: fixed; top: 16px; right: 16px; background: #1D9E75; color: #fff; border: none; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; z-index: 999; }
+  .print-btn:hover { background: #0F6E56; }
+  @media print { .print-btn { display: none; } body { padding: 18px; } }
+  .divider { border: none; border-top: 1px solid #d0e8e0; margin: 20px 0; }
+  .db-chip { display: inline-block; background: #e3e8f7; color: #1040a0; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-family: monospace; margin-right: 4px; }
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">Download / Print PDF</button>
+
+<h1>Backend API Datasheet</h1>
+<div class="meta">
+  <span>Project: AI Student Loan &amp; Scholarship System</span>
+  <span>Owner: Person B — Backend Engineer</span>
+  <span>Version: v1.0</span>
+  <span>Base URL: <code>https://api.loanai.dev/v1</code></span>
+</div>
+
+<div class="note">All endpoints require <code>Authorization: Bearer &lt;JWT&gt;</code> header unless marked [PUBLIC]. Timestamps are ISO 8601 UTC. All IDs are UUIDs. Responses always include <code>{ "status": "success"|"error", "data": {}, "message": "" }</code></div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 1 — AUTH SERVICE</h2>
+<div class="section-intro">Handles registration, login, OTP, JWT issuance, DigiLocker OAuth. Called by Person A (frontend) and Person C (AI services) to verify tokens.</div>
+
+<h3>POST /auth/register [PUBLIC]</h3>
+<p class="desc">Register a new student account. Triggers OTP to mobile.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>full_name</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Min 3 chars</td></tr>
+<tr><td><code>mobile</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>10-digit Indian mobile</td></tr>
+<tr><td><code>email</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Valid email format</td></tr>
+<tr><td><code>dob</code></td><td>date</td><td><span class="badge req">REQ</span></td><td>YYYY-MM-DD, must be 16+</td></tr>
+<tr><td><code>password</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Min 8 chars, bcrypt hashed</td></tr>
+<tr><td><code>intent</code></td><td>enum</td><td><span class="badge req">REQ</span></td><td><code>loan</code> | <code>scholarship</code> | <code>both</code></td></tr>
+</table>
+<p class="desc"><strong>Response 201:</strong> <code>{ user_id, otp_token, expires_in: 300 }</code></p>
+
+<h3>POST /auth/verify-otp [PUBLIC]</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>otp_token</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>From register response</td></tr>
+<tr><td><code>otp_code</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>6-digit code from SMS</td></tr>
+</table>
+<p class="desc"><strong>Response 200:</strong> <code>{ access_token, refresh_token, user_id, intent }</code></p>
+
+<h3>POST /auth/login [PUBLIC]</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>mobile</code></td><td>string</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>password</code></td><td>string</td><td><span class="badge req">REQ</span></td><td></td></tr>
+</table>
+<p class="desc"><strong>Response 200:</strong> <code>{ access_token, refresh_token, user_id, kyc_status, app_status }</code></p>
+
+<h3>POST /auth/refresh</h3>
+<p class="desc"><strong>Body:</strong> <code>{ refresh_token }</code> → Returns new <code>access_token</code></p>
+
+<h3>GET /auth/digilocker/init</h3>
+<p class="desc">Returns DigiLocker OAuth redirect URL for the logged-in user.</p>
+<p class="desc"><strong>Response:</strong> <code>{ redirect_url, state_token }</code></p>
+
+<h3>POST /auth/digilocker/callback</h3>
+<p class="desc">Receives DigiLocker OAuth code, fetches verified docs, stores in MinIO, updates KYC flags.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>code</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>OAuth auth code from DigiLocker</td></tr>
+<tr><td><code>state</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Must match state_token</td></tr>
+</table>
+<p class="desc"><strong>Response 200:</strong> <code>{ kyc_status: "digilocker_verified", docs_fetched: ["aadhaar","marksheet"] }</code></p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 2 — USER &amp; PROFILE SERVICE</h2>
+<div class="section-intro">Stores full student profile including academic, financial, and KYC data. DB: <span class="db-chip">PostgreSQL</span> <code>users</code> + <code>profiles</code> tables.</div>
+
+<h3>PUT /users/{user_id}/profile</h3>
+<p class="desc">Upsert student profile. Called after chatbot collects each section.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>aadhaar_number</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>12-digit, stored encrypted (AES-256)</td></tr>
+<tr><td><code>pan_number</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>10-char, stored encrypted</td></tr>
+<tr><td><code>gender</code></td><td>enum</td><td><span class="badge req">REQ</span></td><td><code>M</code>|<code>F</code>|<code>other</code></td></tr>
+<tr><td><code>state</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Indian state name — used for state scholarship matching</td></tr>
+<tr><td><code>category</code></td><td>enum</td><td><span class="badge req">REQ</span></td><td><code>general</code>|<code>obc</code>|<code>sc</code>|<code>st</code>|<code>ews</code></td></tr>
+<tr><td><code>institution_name</code></td><td>string</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>institution_nirf_rank</code></td><td>integer</td><td><span class="badge opt">OPT</span></td><td>Nullable; used in academic scoring</td></tr>
+<tr><td><code>course_name</code></td><td>string</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>course_duration_years</code></td><td>integer</td><td><span class="badge req">REQ</span></td><td>2–6</td></tr>
+<tr><td><code>current_year</code></td><td>integer</td><td><span class="badge req">REQ</span></td><td>1-based semester group</td></tr>
+<tr><td><code>last_exam_percentage</code></td><td>float</td><td><span class="badge req">REQ</span></td><td>0–100</td></tr>
+<tr><td><code>family_annual_income</code></td><td>integer</td><td><span class="badge req">REQ</span></td><td>In INR</td></tr>
+<tr><td><code>co_applicant_name</code></td><td>string</td><td><span class="badge opt">OPT</span></td><td>Required if student is minor</td></tr>
+<tr><td><code>co_applicant_income</code></td><td>integer</td><td><span class="badge opt">OPT</span></td><td>In INR</td></tr>
+<tr><td><code>existing_loans_amount</code></td><td>integer</td><td><span class="badge opt">OPT</span></td><td>0 if none</td></tr>
+<tr><td><code>loan_amount_requested</code></td><td>integer</td><td><span class="badge req">REQ</span></td><td>In INR, required for loan intent</td></tr>
+<tr><td><code>bank_account_number</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Encrypted; used for disbursal</td></tr>
+<tr><td><code>bank_ifsc</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>11-char IFSC</td></tr>
+<tr><td><code>consent_timestamp</code></td><td>timestamp</td><td><span class="badge req">REQ</span></td><td>When student accepted T&amp;C — must be stored for audit</td></tr>
+<tr><td><code>device_fingerprint</code></td><td>string</td><td><span class="badge req">REQ</span></td><td>Sent by frontend for fraud logging</td></tr>
+</table>
+<p class="desc"><strong>Response 200:</strong> <code>{ profile_complete: true, kyc_ready: bool }</code></p>
+
+<h3>GET /users/{user_id}/profile</h3>
+<p class="desc">Returns full profile. Called by AI services and frontend dashboard.</p>
+<p class="desc"><strong>Response:</strong> Full profile object with all fields above + <code>created_at</code>, <code>updated_at</code>, <code>kyc_status</code></p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 3 — DOCUMENT SERVICE</h2>
+<div class="section-intro">Handles document upload to MinIO and triggers AI processing via Kafka. DB: <span class="db-chip">PostgreSQL</span> <code>documents</code> table + <span class="db-chip">MinIO</span> object storage.</div>
+
+<h3>POST /documents/upload</h3>
+<p class="desc">Multipart upload. Stores encrypted file in MinIO, creates document record, fires <code>document.uploaded</code> Kafka event for Person C's OCR pipeline.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>doc_type</code></td><td>enum</td><td><span class="badge req">REQ</span></td><td><code>aadhaar</code>|<code>pan</code>|<code>selfie</code>|<code>marksheet</code>|<code>income_cert</code>|<code>bank_passbook</code>|<code>admission_letter</code>|<code>caste_cert</code></td></tr>
+<tr><td><code>file</code></td><td>binary</td><td><span class="badge req">REQ</span></td><td>Max 10MB. PDF or JPG/PNG</td></tr>
+</table>
+<p class="desc"><strong>Response 201:</strong> <code>{ doc_id, minio_path, status: "processing", upload_timestamp }</code></p>
+<div class="note">After upload, fire Kafka event: <code>document.uploaded</code> with <code>{ doc_id, user_id, doc_type, minio_path }</code>. Person C's OCR service listens to this topic.</div>
+
+<h3>GET /documents/{user_id}/status</h3>
+<p class="desc">Returns verification status of all documents for a user.</p>
+<p class="desc"><strong>Response:</strong> <code>{ docs: [{ doc_type, doc_id, status: "pending"|"verified"|"rejected", rejection_reason }] }</code></p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 4 — APPLICATION SERVICE</h2>
+<div class="section-intro">Core state machine. Tracks application lifecycle. DB: <span class="db-chip">PostgreSQL</span> <code>applications</code> table.</div>
+
+<p class="desc"><strong>Application states:</strong> <code>draft</code> → <code>submitted</code> → <code>kyc_pending</code> → <code>behavioral_pending</code> → <code>fraud_check</code> → <code>eligibility_scoring</code> → <code>approved</code> | <code>rejected</code> | <code>human_review</code> → <code>disbursed</code></p>
+
+<h3>POST /applications</h3>
+<p class="desc">Create new application. Fires <code>app.submitted</code> Kafka event.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>type</code></td><td>enum</td><td><span class="badge req">REQ</span></td><td><code>loan</code>|<code>scholarship</code>|<code>both</code></td></tr>
+<tr><td><code>loan_amount</code></td><td>integer</td><td><span class="badge opt">OPT</span></td><td>Required if type includes loan</td></tr>
+<tr><td><code>scholarship_ids</code></td><td>array</td><td><span class="badge opt">OPT</span></td><td>Pre-selected scholarships if any</td></tr>
+</table>
+<p class="desc"><strong>Response 201:</strong> <code>{ app_id, status: "submitted", created_at }</code></p>
+
+<h3>GET /applications/{app_id}</h3>
+<p class="desc">Full application detail including current state, scores, and timeline.</p>
+<p class="desc"><strong>Response:</strong> <code>{ app_id, user_id, type, status, score_breakdown, loan_amount, approved_amount, interest_rate, reject_reason, created_at, updated_at }</code></p>
+
+<h3>GET /applications/{app_id}/status</h3>
+<p class="desc">Lightweight status poll. Used by frontend for live tracking.</p>
+<p class="desc"><strong>Response:</strong> <code>{ status, current_phase, phase_message, percent_complete }</code></p>
+
+<h3>PUT /applications/{app_id}/state</h3>
+<p class="desc">Internal use only (service-to-service). Advances state machine.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>new_state</code></td><td>enum</td><td>Must follow valid transition</td></tr>
+<tr><td><code>reason</code></td><td>string</td><td>Required on reject/review</td></tr>
+<tr><td><code>triggered_by</code></td><td>string</td><td>Service name for audit log</td></tr>
+</table>
+
+<h3>GET /applications/user/{user_id}</h3>
+<p class="desc">All applications for a user. Used by admin dashboard.</p>
+
+<h3>WS /applications/{app_id}/live</h3>
+<p class="desc">WebSocket endpoint. Pushes state changes to frontend in real time. Person A connects on the status tracker screen.</p>
+<p class="desc"><strong>Pushes:</strong> <code>{ event: "state_change", new_state, message, timestamp }</code></p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 5 — ELIGIBILITY &amp; SCORING SERVICE</h2>
+<div class="section-intro">Receives sub-scores from AI services (via Kafka), computes weighted composite score, writes result. DB: <span class="db-chip">PostgreSQL</span> <code>eligibility_scores</code> table.</div>
+
+<h3>POST /eligibility/compute</h3>
+<p class="desc">Called internally when all sub-scores are ready. Computes final composite score and fires <code>eligibility.calculated</code> event.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td><span class="badge req">REQ</span></td><td></td></tr>
+<tr><td><code>academic_score</code></td><td>float (0–100)</td><td><span class="badge req">REQ</span></td><td>From eligibility AI svc</td></tr>
+<tr><td><code>financial_score</code></td><td>float (0–100)</td><td><span class="badge req">REQ</span></td><td>From eligibility AI svc</td></tr>
+<tr><td><code>pq_score</code></td><td>float (0–100)</td><td><span class="badge req">REQ</span></td><td>From Person C behavioral svc</td></tr>
+<tr><td><code>doc_trust_score</code></td><td>float (0–100)</td><td><span class="badge req">REQ</span></td><td>From Person C OCR/face svc</td></tr>
+<tr><td><code>kyc_completeness</code></td><td>float (0–100)</td><td><span class="badge req">REQ</span></td><td>Computed from profile completeness</td></tr>
+<tr><td><code>fraud_flag</code></td><td>boolean</td><td><span class="badge req">REQ</span></td><td>If true, auto-reject regardless of score</td></tr>
+</table>
+<p class="desc"><strong>Weights applied server-side:</strong> Academic×0.25 + Financial×0.30 + PQ×0.20 + DocTrust×0.15 + KYC×0.10</p>
+<p class="desc"><strong>Response 200:</strong> <code>{ composite_score, band: "approved"|"review"|"rejected", approved_amount, interest_rate_band, pq_override_applied: bool }</code></p>
+<div class="note">PQ override rule: if composite 50–69 AND pq_score &gt;= 80, upgrade band to "approved". Record <code>pq_override_applied: true</code> in audit log.</div>
+
+<h3>GET /eligibility/{app_id}</h3>
+<p class="desc">Returns full score breakdown. Used by frontend explainability panel and by admin dashboard.</p>
+<p class="desc"><strong>Response:</strong> All sub-scores + composite + band + <code>improvement_hints</code> array (generated by Person C explainability svc)</p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 6 — AI BRIDGE ENDPOINTS</h2>
+<div class="section-intro">Person B exposes these endpoints. Person C calls them to push AI results back into the backend. Also includes endpoints Person B calls on Person C's AI service.</div>
+
+<h3>POST /ai/kyc-result [called BY Person C]</h3>
+<p class="desc">Person C's KYC AI service posts OCR + face match results here after processing.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>doc_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>doc_type</code></td><td>string</td><td></td></tr>
+<tr><td><code>ocr_extracted</code></td><td>object</td><td>Structured data extracted: name, dob, id_number, etc.</td></tr>
+<tr><td><code>face_match_score</code></td><td>float</td><td>0–1. Only for aadhaar + selfie pair</td></tr>
+<tr><td><code>face_match_pass</code></td><td>boolean</td><td>true if score &gt;= 0.85</td></tr>
+<tr><td><code>doc_authentic</code></td><td>boolean</td><td>Metadata/tampering check result</td></tr>
+<tr><td><code>doc_trust_score</code></td><td>float (0–100)</td><td>Composite doc quality score</td></tr>
+</table>
+
+<h3>POST /ai/behavioral-result [called BY Person C]</h3>
+<p class="desc">Person C's behavioral engine posts PQ scores after student completes assessment.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>pq_score</code></td><td>float (0–100)</td><td>Overall Potential Quotient</td></tr>
+<tr><td><code>dimension_scores</code></td><td>object</td><td><code>{ financial_resp, resilience, goal_clarity, risk_awareness, initiative, social_capital }</code> each 0–100</td></tr>
+<tr><td><code>question_hash</code></td><td>string</td><td>SHA256 of question set — for replay fraud detection</td></tr>
+<tr><td><code>time_taken_seconds</code></td><td>integer</td><td>Total time; flag if under 60s</td></tr>
+</table>
+
+<h3>POST /ai/fraud-result [called BY Person C]</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>fraud_flag</code></td><td>boolean</td><td></td></tr>
+<tr><td><code>fraud_reasons</code></td><td>array</td><td>e.g. <code>["duplicate_pan","face_mismatch_pool"]</code></td></tr>
+<tr><td><code>fraud_confidence</code></td><td>float (0–1)</td><td></td></tr>
+</table>
+
+<h3>POST /ai/scholarship-result [called BY Person C]</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>matched_scholarships</code></td><td>array</td><td><code>[{ scholarship_id, name, amount, match_score, reason }]</code></td></tr>
+<tr><td><code>total_scholarship_value</code></td><td>integer</td><td>Used to reduce loan amount</td></tr>
+</table>
+
+<h3>POST /ai/explanation-result [called BY Person C]</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>decision_explanation</code></td><td>string</td><td>Human-readable LLM-generated explanation</td></tr>
+<tr><td><code>improvement_hints</code></td><td>array</td><td>Up to 3 actionable hints for rejected/review cases</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 7 — SCHOLARSHIP SERVICE</h2>
+<div class="section-intro">DB: <span class="db-chip">PostgreSQL</span> <code>scholarships</code> + <code>scholarship_applications</code> tables.</div>
+
+<h3>GET /scholarships/list</h3>
+<p class="desc">Returns all active scholarships. Supports filter by state, category, course type.</p>
+<p class="desc"><strong>Query params:</strong> <code>state</code>, <code>category</code>, <code>course_type</code>, <code>min_amount</code></p>
+
+<h3>GET /scholarships/{app_id}/matches</h3>
+<p class="desc">Returns AI-matched scholarships for an application. Populated after Person C posts to <code>/ai/scholarship-result</code>.</p>
+
+<h3>POST /scholarships/apply</h3>
+<p class="desc">Auto-apply student to a matched scholarship.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>scholarship_id</code></td><td>UUID</td><td></td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 8 — DISBURSAL SERVICE</h2>
+<div class="section-intro">Manages semester-wise payment schedule. DB: <span class="db-chip">PostgreSQL</span> <code>disbursal_schedule</code> + <code>disbursal_events</code> tables.</div>
+
+<h3>POST /disbursal/schedule</h3>
+<p class="desc">Creates semester-wise disbursal plan after approval. Called internally.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>total_amount</code></td><td>integer</td><td>Approved loan amount in INR</td></tr>
+<tr><td><code>semesters</code></td><td>integer</td><td>Total semesters = course_duration × 2</td></tr>
+<tr><td><code>first_disbursal_date</code></td><td>date</td><td>Immediate for sem 1</td></tr>
+</table>
+<p class="desc"><strong>Response:</strong> <code>{ schedule: [{ semester, amount, scheduled_date, status }] }</code></p>
+
+<h3>POST /disbursal/release/{app_id}/semester/{sem_num}</h3>
+<p class="desc">Trigger payment for a specific semester. Called by semester gate service after marksheet OCR passes.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>marksheet_doc_id</code></td><td>UUID</td><td>Verified marksheet for this semester</td></tr>
+<tr><td><code>sgpa</code></td><td>float</td><td>OCR-extracted SGPA from marksheet</td></tr>
+</table>
+<p class="desc"><strong>Internally:</strong> Calls Razorpay payout API, fires <code>loan.disbursed</code> Kafka event, sends notification.</p>
+
+<h3>GET /disbursal/{app_id}/schedule</h3>
+<p class="desc">Returns full disbursal schedule with status per semester. Used by frontend semester tracker.</p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 9 — SEMESTER GATE SERVICE</h2>
+<div class="section-intro">Cron-triggered service. Checks if students are due for next semester gate, requests marksheet, verifies, releases disbursal.</div>
+
+<h3>POST /semester-gate/trigger</h3>
+<p class="desc">Called by internal cron job 30 days after each semester end date.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>semester_number</code></td><td>integer</td><td></td></tr>
+</table>
+<p class="desc">Sends notification to student requesting marksheet upload. Sets status to <code>awaiting_marksheet</code>.</p>
+
+<h3>POST /semester-gate/submit-marksheet</h3>
+<p class="desc">Student submits marksheet. Fires <code>document.uploaded</code> Kafka event with doc_type <code>semester_marksheet</code>. Person C's OCR extracts SGPA and posts result.</p>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>semester_number</code></td><td>integer</td><td></td></tr>
+<tr><td><code>file</code></td><td>binary</td><td>Marksheet PDF/image</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 10 — NOTIFICATION SERVICE</h2>
+<div class="section-intro">Kafka consumer. Listens to all major events and sends SMS/email/push.</div>
+
+<h3>Topics consumed → Notification sent</h3>
+<table class="event-table">
+<tr><th>Kafka Topic</th><th>Notification Sent</th><th>Channel</th></tr>
+<tr><td>app.submitted</td><td>"Application received, KYC in progress"</td><td>SMS + email</td></tr>
+<tr><td>kyc.verified</td><td>"KYC verified, behavioral assessment next"</td><td>SMS</td></tr>
+<tr><td>behavioral.scored</td><td>"Assessment complete, eligibility check in progress"</td><td>SMS</td></tr>
+<tr><td>eligibility.calculated</td><td>"Your application result is ready"</td><td>SMS + email</td></tr>
+<tr><td>approval.decided</td><td>Approval/rejection with reason</td><td>SMS + email</td></tr>
+<tr><td>loan.disbursed</td><td>"₹X disbursed to institution for Semester N"</td><td>SMS + email</td></tr>
+<tr><td>semester.gate.trigger</td><td>"Please upload Semester N marksheet to receive next payment"</td><td>SMS + email</td></tr>
+</table>
+
+<h3>POST /notifications/send [internal]</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>channel</code></td><td>enum</td><td><code>sms</code>|<code>email</code>|<code>push</code>|<code>whatsapp</code></td></tr>
+<tr><td><code>template_id</code></td><td>string</td><td>Pre-defined template key</td></tr>
+<tr><td><code>variables</code></td><td>object</td><td>Template variable substitutions</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>MODULE 11 — AUDIT SERVICE</h2>
+<h3>GET /audit/{app_id}/trail</h3>
+<p class="desc">Returns full event trail for an application. Used by admin and for grievance handling.</p>
+<p class="desc"><strong>Response:</strong> <code>{ events: [{ timestamp, event_type, triggered_by, details, state_before, state_after }] }</code></p>
+
+<h3>POST /audit/grievance</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>app_id</code></td><td>UUID</td><td></td></tr>
+<tr><td><code>reason</code></td><td>string</td><td>Student's grievance text</td></tr>
+</table>
+<p class="desc">Creates grievance ticket, assigns to human reviewer, fires notification.</p>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>KAFKA EVENT REFERENCE</h2>
+<div class="section-intro">All events follow the schema: <code>{ event_id, topic, app_id, user_id, timestamp, payload }</code></div>
+<table class="event-table">
+<tr><th>Topic</th><th>Producer</th><th>Consumer(s)</th><th>Key Payload Fields</th></tr>
+<tr><td>app.submitted</td><td>Application svc (B)</td><td>KYC AI svc (C), Notify svc (B)</td><td>app_id, user_id, type</td></tr>
+<tr><td>document.uploaded</td><td>Document svc (B)</td><td>OCR svc (C)</td><td>doc_id, doc_type, minio_path</td></tr>
+<tr><td>kyc.verified</td><td>KYC AI svc (C)</td><td>Application svc (B), Notify svc (B)</td><td>user_id, doc_trust_score, face_match_pass</td></tr>
+<tr><td>behavioral.scored</td><td>Behavioral svc (C)</td><td>Eligibility svc (B), Notify svc (B)</td><td>app_id, pq_score, dimension_scores</td></tr>
+<tr><td>fraud.checked</td><td>Fraud svc (C)</td><td>Eligibility svc (B)</td><td>app_id, fraud_flag, fraud_reasons</td></tr>
+<tr><td>eligibility.calculated</td><td>Eligibility svc (B)</td><td>Agent orchestrator (C), Notify svc (B)</td><td>app_id, composite_score, band</td></tr>
+<tr><td>approval.decided</td><td>Agent orchestrator (C)</td><td>Disbursal svc (B), Scholarship svc (B), Notify svc (B)</td><td>app_id, decision, approved_amount, reason</td></tr>
+<tr><td>loan.disbursed</td><td>Disbursal svc (B)</td><td>Audit svc (B), Notify svc (B)</td><td>app_id, semester, amount, transaction_id</td></tr>
+<tr><td>semester.gate.trigger</td><td>Semester gate svc (B)</td><td>Notify svc (B)</td><td>app_id, semester_number, due_date</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<h2>DATABASE SCHEMA SUMMARY</h2>
+<div class="section-intro">Person B owns all PostgreSQL tables. Person C reads via REST API only — never direct DB access.</div>
+<table>
+<tr><th>Table</th><th>Key Columns</th><th>Notes</th></tr>
+<tr><td><code>users</code></td><td>id, mobile, email, password_hash, intent, created_at</td><td>Auth only</td></tr>
+<tr><td><code>profiles</code></td><td>user_id FK, aadhaar_enc, pan_enc, course, institution, income, loan_amount, consent_ts, device_fp</td><td>PII encrypted</td></tr>
+<tr><td><code>documents</code></td><td>id, user_id FK, doc_type, minio_path, status, ocr_data JSONB, trust_score</td><td></td></tr>
+<tr><td><code>applications</code></td><td>id, user_id FK, type, status, loan_amount, approved_amount, interest_rate, created_at</td><td>State machine</td></tr>
+<tr><td><code>eligibility_scores</code></td><td>app_id FK, academic, financial, pq, doc_trust, kyc, composite, band, pq_override, fraud_flag</td><td></td></tr>
+<tr><td><code>behavioral_results</code></td><td>app_id FK, pq_score, fin_resp, resilience, goal_clarity, risk_aware, initiative, social_cap, question_hash</td><td></td></tr>
+<tr><td><code>disbursal_schedule</code></td><td>app_id FK, semester, amount, scheduled_date, actual_date, status, txn_id</td><td></td></tr>
+<tr><td><code>scholarships</code></td><td>id, name, amount, state, category, course_type, deadline, source (NSP/state/private)</td><td>Seeded data</td></tr>
+<tr><td><code>audit_logs</code></td><td>id, app_id FK, event_type, triggered_by, state_before, state_after, details JSONB, ts</td><td>Append-only</td></tr>
+</table>
+
+<hr class="divider">
+
+<!-- ENV VARS -->
+<h2>ENVIRONMENT VARIABLES (Person B)</h2>
+<table>
+<tr><th>Variable</th><th>Example Value</th><th>Notes</th></tr>
+<tr><td><code>DATABASE_URL</code></td><td>postgresql://user:pass@localhost:5432/loanai</td><td></td></tr>
+<tr><td><code>REDIS_URL</code></td><td>redis://localhost:6379</td><td></td></tr>
+<tr><td><code>KAFKA_BROKERS</code></td><td>localhost:9092</td><td></td></tr>
+<tr><td><code>MINIO_ENDPOINT</code></td><td>localhost:9000</td><td></td></tr>
+<tr><td><code>MINIO_ACCESS_KEY</code></td><td>minioadmin</td><td></td></tr>
+<tr><td><code>MINIO_SECRET_KEY</code></td><td>minioadmin</td><td></td></tr>
+<tr><td><code>JWT_SECRET</code></td><td>random-256-bit-string</td><td></td></tr>
+<tr><td><code>JWT_EXPIRY</code></td><td>3600</td><td>Seconds</td></tr>
+<tr><td><code>RAZORPAY_KEY_ID</code></td><td>rzp_test_xxxx</td><td>Test mode for hackathon</td></tr>
+<tr><td><code>RAZORPAY_SECRET</code></td><td>xxxx</td><td></td></tr>
+<tr><td><code>TWILIO_SID</code></td><td>ACxxxx</td><td></td></tr>
+<tr><td><code>TWILIO_TOKEN</code></td><td>xxxx</td><td></td></tr>
+<tr><td><code>DIGILOCKER_CLIENT_ID</code></td><td>xxxx</td><td></td></tr>
+<tr><td><code>DIGILOCKER_SECRET</code></td><td>xxxx</td><td></td></tr>
+<tr><td><code>AI_SERVICE_URL</code></td><td>http://localhost:8001</td><td>Person C's FastAPI</td></tr>
+<tr><td><code>ENCRYPTION_KEY</code></td><td>random-256-bit-string</td><td>AES-256 for PII fields</td></tr>
+</table>
+
+<div style="margin-top:28px;padding:12px 16px;background:#e8f5f0;border-radius:6px;font-size:11px;color:#085041;">
+  <strong>Integration checklist for Person B:</strong><br>
+  1. Set up Docker Compose (Postgres + Redis + Kafka + MinIO + Qdrant) on Day 1 and commit it.<br>
+  2. Share OpenAPI YAML with Person A and C before writing any endpoint code.<br>
+  3. Kafka consumer groups: use <code>backend-svc</code> as group ID for all B consumers, <code>ai-svc</code> for C.<br>
+  4. All PII fields (aadhaar, pan, bank account) must be AES-256 encrypted at rest — never store plaintext.<br>
+  5. Audit log every state transition — append-only, never update or delete audit rows.<br>
+  6. Person C calls <code>/ai/*-result</code> endpoints; Person B never calls Person C's AI endpoints directly except for <code>/ai/behavioral/questions</code>.
+</div>
+
+</body>
+</html>

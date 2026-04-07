@@ -1,0 +1,1219 @@
+Let me read all three files first.Now I have the full picture across all three. Let me write the aligned master prompt.
+
+---
+
+```
+You are a principal AI/ML engineer with deep full-stack experience. You are building the complete Person C AI service for Hackforge 2.0 (PS-04 FINTECH, OdiTek/SPARC Bhubaneswar). You have the full contract from Person A (React frontend) and Person B (Node/FastAPI backend) in front of you. Every endpoint name, field name, Kafka topic, and payload shape you write MUST match their contracts exactly. No assumptions. Build everything from zero. No placeholders. No TODOs. Execute all shell commands yourself.
+
+---
+
+## SYSTEM CONTRACTS YOU MUST HONOUR (read before writing a single line)
+
+### Person B's exact endpoints you POST results to:
+POST {BACKEND_BASE_URL}/ai/kyc-result
+POST {BACKEND_BASE_URL}/ai/behavioral-result  
+POST {BACKEND_BASE_URL}/ai/fraud-result
+POST {BACKEND_BASE_URL}/ai/scholarship-result
+POST {BACKEND_BASE_URL}/ai/explanation-result
+
+### Person B's exact endpoints you GET data from:
+GET {BACKEND_BASE_URL}/users/{user_id}/profile
+GET {BACKEND_BASE_URL}/documents/{user_id}/status
+GET {BACKEND_BASE_URL}/users/check-pan?pan={sha256_hash}
+GET {BACKEND_BASE_URL}/users/check-aadhaar?hash={sha256_hash}
+GET {BACKEND_BASE_URL}/users/{user_id}/app-count?days=30
+
+### Person B calls YOU directly at:
+GET  http://localhost:8001/behavioral/questions?app_id={id}   ← Person B proxies this to Person A
+POST http://localhost:8001/behavioral/submit                   ← receives answers from Person A
+
+### Person A's exact field names (from fe_datasheet):
+- getBehavioralQuestions → GET /behavioral/questions (via Person B)
+- submitBehavioralAnswers → POST /behavioral/submit
+- sendChatMessage → POST /chat/message
+Response field it reads: questions[], pq_score, dimension_scores, matched_scholarships, decision_explanation
+
+### Kafka topics — exact names:
+CONSUME: document.uploaded | app.submitted | eligibility.calculated
+PRODUCE: kyc.verified | behavioral.scored | fraud.checked | approval.decided
+
+### Kafka event schema (ALL events): { event_id, topic, app_id, user_id, timestamp, payload }
+
+### Person B's DB column names (your payloads must map to these):
+eligibility_scores table: pq, fin_resp, resilience, goal_clarity, risk_aware, initiative, social_cap, question_hash
+behavioral_results table: app_id, pq_score, fin_resp, resilience, goal_clarity, risk_aware, initiative, social_cap, question_hash
+
+### Person B's Kafka consumer group: backend-svc
+### Your Kafka consumer group: ai-svc
+
+---
+
+## STEP 1 — INFRASTRUCTURE SETUP
+
+Run these shell commands in sequence. Do not skip any. Verify each one before proceeding.
+
+```bash
+# Check prerequisites
+brew --version || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+docker info || (open -a Docker && sleep 20)
+python3.11 --version || brew install python@3.11
+ollama --version || brew install ollama
+```
+
+```bash
+# Start Ollama
+pkill ollama 2>/dev/null; sleep 2
+ollama serve > /tmp/ollama.log 2>&1 &
+sleep 8
+
+# Pull models — these are used as LLM fallback when GROQ_API_KEY is absent
+ollama pull qwen2.5-coder:7b
+ollama pull mistral-nemo:latest
+
+# Verify Ollama
+curl -s http://localhost:11434/api/tags | python3 -m json.tool
+```
+
+Create `docker-compose.infra.yml` in project root:
+
+```yaml
+version: '3.8'
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: hackforge_qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: hackforge_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: hackforge_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: hackforge_kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 24
+    depends_on:
+      - zookeeper
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: hackforge_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+  minio_data:
+```
+
+```bash
+docker compose -f docker-compose.infra.yml up -d
+sleep 20
+docker compose -f docker-compose.infra.yml ps
+# All 5 must show "Up". If any are not, re-run: docker compose -f docker-compose.infra.yml up -d
+```
+
+---
+
+## STEP 2 — PROJECT SKELETON
+
+Create the full folder tree. Run this as a single bash block:
+
+```bash
+mkdir -p ai_service/app/{routers,agents,pipelines,kafka,services,models,prompts}
+mkdir -p ai_service/{data,scripts,tests}
+touch ai_service/app/__init__.py
+touch ai_service/app/routers/__init__.py
+touch ai_service/app/agents/__init__.py
+touch ai_service/app/pipelines/__init__.py
+touch ai_service/app/kafka/__init__.py
+touch ai_service/app/services/__init__.py
+touch ai_service/app/models/__init__.py
+touch ai_service/app/prompts/__init__.py
+touch ai_service/tests/__init__.py
+```
+
+---
+
+## STEP 3 — ENVIRONMENT
+
+Create `ai_service/.env` and `ai_service/.env.example` with identical content:
+
+```
+GROQ_API_KEY=gsk_xxxx
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:7b
+BACKEND_BASE_URL=http://localhost:3000/v1
+AI_SERVICE_PORT=8001
+KAFKA_BROKERS=localhost:9092
+KAFKA_GROUP_ID=ai-svc
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=loanai-docs
+QDRANT_URL=http://localhost:6333
+REDIS_URL=redis://localhost:6379
+INSIGHTFACE_MODEL=buffalo_l
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+FACE_MATCH_THRESHOLD=0.85
+FACE_MATCH_MANUAL_REVIEW_THRESHOLD=0.70
+DEMO_APP_ID=demo-rajan-001
+DEMO_USER_ID=demo-user-rajan
+```
+
+---
+
+## STEP 4 — REQUIREMENTS
+
+Create `ai_service/requirements.txt`:
+
+```
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+langchain==0.2.0
+langgraph==0.1.0
+groq==0.9.0
+paddlepaddle==2.6.1
+paddleocr==2.7.3
+pdf2image==1.17.0
+insightface==0.7.3
+onnxruntime==1.18.0
+opencv-python-headless==4.10.0.84
+sentence-transformers==3.0.0
+qdrant-client==1.9.0
+minio==7.2.7
+aiokafka==0.10.0
+httpx==0.27.0
+redis==5.0.4
+pydantic==2.7.0
+pydantic-settings==2.3.0
+python-dotenv==1.0.1
+numpy==1.26.4
+Pillow==10.3.0
+scikit-learn==1.5.0
+xgboost==2.0.3
+transformers==4.41.0
+torch==2.3.0
+pytest==8.2.0
+pytest-asyncio==0.23.7
+aiofiles==23.2.1
+python-multipart==0.0.9
+```
+
+```bash
+cd ai_service
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+```
+
+---
+
+## STEP 5 — config.py
+
+Write `ai_service/app/config.py` using pydantic-settings BaseSettings.
+
+Load every env var. Add these two helpers:
+
+```python
+@property
+def llm_provider(self) -> str:
+    # Returns "groq" only if key exists and is not the placeholder
+    if self.groq_api_key and self.groq_api_key != "gsk_xxxx":
+        return "groq"
+    return "ollama"
+
+def make_llm_call(self, prompt: str, system: str = "", max_tokens: int = 1000) -> str:
+    # SINGLE unified LLM call function used by ALL pipelines and agents
+    # If groq: use groq SDK, model=llama-3-70b-8192
+    # If ollama: POST to http://localhost:11434/api/generate, model=qwen2.5-coder:7b
+    # Always: retry once on failure, return empty string as last resort — never raise
+    # Always: ask for JSON when prompt contains the word "JSON"
+```
+
+This is the ONLY place LLM provider is chosen. Every pipeline imports `get_settings().make_llm_call(...)`.
+
+---
+
+## STEP 6 — PYDANTIC MODELS
+
+Write `ai_service/app/models/requests.py`:
+
+```python
+# SubmitAnswersRequest — received at POST /behavioral/submit
+class AnswerItem(BaseModel):
+    question_id: str
+    answer: str  # For MCQ: "0"|"1"|"2"|"3" (option index). For free_text: raw string.
+    time_taken_seconds: int
+
+class SubmitAnswersRequest(BaseModel):
+    app_id: str
+    answers: list[AnswerItem]
+
+# ChatRequest — matches Person A's sendChatMessage call
+class ChatRequest(BaseModel):
+    message: str
+    conversation_id: str | None = None
+    language: Literal["en", "hi", "od"] = "en"
+```
+
+Write `ai_service/app/models/responses.py`:
+
+```python
+# QuestionItem — served to Person A via GET /behavioral/questions
+class QuestionItem(BaseModel):
+    question_id: str
+    question_text: str
+    type: Literal["mcq", "free_text"]
+    options: list[str] | None = None  # None for free_text
+    dimension: str  # one of: financial_responsibility|resilience|goal_clarity|risk_awareness|initiative|social_capital
+
+class QuestionResponse(BaseModel):
+    app_id: str
+    questions: list[QuestionItem]
+
+# DimensionScores — field names MUST match Person B's behavioral_results table columns
+class DimensionScores(BaseModel):
+    fin_resp: float        # financial_responsibility
+    resilience: float
+    goal_clarity: float
+    risk_aware: float      # risk_awareness
+    initiative: float
+    social_cap: float      # social_capital
+
+class BehavioralResult(BaseModel):
+    app_id: str
+    pq_score: float        # 0-100, matches eligibility_scores.pq
+    dimension_scores: DimensionScores   # matches behavioral_results columns exactly
+    question_hash: str     # sha256 of question_ids
+    time_flags: list[str]  # e.g. ["suspiciously_fast"]
+
+class FraudCheck(BaseModel):
+    check_name: str
+    passed: bool
+    reason: str | None = None
+
+class FraudResult(BaseModel):
+    app_id: str
+    fraud_flag: bool
+    fraud_reasons: list[str]
+    fraud_confidence: float   # 0-100
+    checks: list[FraudCheck]
+
+class OCRResult(BaseModel):
+    doc_type: str
+    ocr_extracted: dict
+    doc_trust_score: float    # 0.0-1.0, maps to documents.trust_score
+    doc_authentic: bool
+
+class FaceMatchResult(BaseModel):
+    face_match_score: float
+    face_match_pass: bool
+    flag: Literal["passed", "manual_review", "failed", "no_face_detected"]
+
+# KYCResult — posted to POST /ai/kyc-result
+class KYCResult(BaseModel):
+    user_id: str
+    doc_id: str
+    doc_type: str
+    ocr_extracted: dict
+    face_match_score: float | None = None
+    face_match_pass: bool | None = None
+    doc_authentic: bool
+    doc_trust_score: float
+
+class ScholarshipMatch(BaseModel):
+    name: str
+    amount: int
+    source: str
+    reason: str           # 1 sentence why student qualifies
+    deadline: str         # ISO date string
+
+class ScholarshipResult(BaseModel):
+    app_id: str
+    matched_scholarships: list[ScholarshipMatch]
+    total_scholarship_value: int
+
+# ExplanationResult — posted to POST /ai/explanation-result
+class ExplanationResult(BaseModel):
+    app_id: str
+    decision_explanation: str  # plain language, 2 sentences — this is what Person A displays
+    improvement_hints: list[str]  # up to 3 items, empty list if approved
+
+class ChatResponse(BaseModel):
+    reply: str
+    sources: list[str]
+    conversation_id: str
+
+class HealthResponse(BaseModel):
+    status: str
+    models_loaded: bool
+    kafka_connected: bool
+    qdrant_connected: bool
+    llm_provider: str
+```
+
+---
+
+## STEP 7 — SERVICE CLIENTS
+
+Write `ai_service/app/services/redis_service.py`:
+- Use `redis.asyncio` 
+- `async get_json(key) → dict | None`
+- `async set_json(key, value: dict, ttl: int) → None`
+- `async get_str(key) → str | None`
+- `async set_str(key, value: str, ttl: int) → None`
+- `async delete(key) → None`
+- Singleton client, connection errors return None silently with log warning
+
+Write `ai_service/app/services/minio_client.py`:
+- `async fetch_file(minio_path: str) → bytes` — retry 3x with 1s delay, raise RuntimeError after 3rd fail
+- `async ensure_bucket(bucket_name: str) → None` — idempotent create
+- `async upload_bytes(bucket: str, key: str, data: bytes, content_type: str) → None`
+- Use minio Python SDK synchronously wrapped in asyncio.to_thread
+
+Write `ai_service/app/services/qdrant_service.py`:
+- `async ensure_collection(name: str, vector_size: int, distance: str) → None` — idempotent
+- `async search(collection: str, vector: list[float], limit: int = 5, score_threshold: float = 0.0) → list` — return [] if unreachable
+- `async upsert(collection: str, id: str, vector: list[float], payload: dict) → None` — silently fail if unreachable
+- Wrap qdrant_client sync calls in asyncio.to_thread
+
+Write `ai_service/app/services/backend_client.py`:
+- Single module-level `httpx.AsyncClient` instance with base_url=BACKEND_BASE_URL, timeout=30
+- Implement ALL these methods. Every one wraps in try/except, logs error, returns None on failure — NEVER raises:
+  - `async get_profile(user_id: str) → dict | None`
+  - `async check_pan(pan_hash: str) → bool` — returns exists=True/False
+  - `async check_aadhaar(aadhaar_hash: str) → bool`
+  - `async get_app_count(user_id: str, days: int = 30) → int`
+  - `async post_kyc_result(payload: KYCResult) → None`
+  - `async post_behavioral_result(payload: BehavioralResult) → None`
+  - `async post_fraud_result(payload: FraudResult) → None`
+  - `async post_scholarship_result(payload: ScholarshipResult) → None`
+  - `async post_explanation_result(payload: ExplanationResult) → None`
+- If BACKEND_BASE_URL host is unreachable: log "Person B not reachable — operating in standalone mode" and return safe defaults
+
+---
+
+## STEP 8 — PROMPTS
+
+Write `ai_service/app/prompts/question_generation.py`:
+
+```python
+QUESTION_GENERATION_PROMPT = """
+You are an expert behavioral psychologist assessing student loan applicants in India.
+
+Generate exactly 8 personalized behavioral questions for this student:
+{profile_context}
+
+STRICT REQUIREMENTS:
+- Questions MUST reference the student's specific course, institution, state, income, and category — never generic questions
+- Exact mix: 3 MCQ situational + 2 MCQ financial literacy + 2 free_text + 1 free_text initiative
+- Dimension coverage: financial_responsibility(2 questions), resilience(2), goal_clarity(1), risk_awareness(1), initiative(1), social_capital(1)
+- MCQ options: exactly 4 options, ordered worst to best financial/behavioral decision
+- Free text: open-ended, requires 3-5 sentences for a complete answer
+- Language: plain English, Class 10 reading level, respectful tone
+- Never ask about caste/religion directly — use "category" as given
+
+Return ONLY a valid JSON array. No markdown, no explanation, no preamble:
+[
+  {{
+    "question_id": "q1",
+    "question_text": "...",
+    "type": "mcq",
+    "options": ["option A (worst)", "option B", "option C", "option D (best)"],
+    "dimension": "financial_responsibility"
+  }},
+  ...exactly 8 items...
+]
+"""
+```
+
+Write `ai_service/app/prompts/answer_scoring.py`:
+
+```python
+ANSWER_SCORING_PROMPT = """
+You are scoring a student loan applicant's free-text answer for a behavioral assessment.
+
+Dimension being evaluated: {dimension}
+Question: {question_text}
+Student's answer: {answer_text}
+
+Scoring rubric for this dimension:
+- 0-25: Shows no understanding, impulsive or irresponsible thinking
+- 26-50: Some awareness but lacks depth or follow-through planning
+- 51-75: Reasonable judgment, shows some maturity
+- 76-100: Strong clarity, mature thinking, specific and actionable
+
+Return ONLY valid JSON. No markdown, no explanation:
+{{"score": <integer 0 to 100>, "reasoning": "<one sentence explaining the score>"}}
+"""
+```
+
+Write `ai_service/app/prompts/explanation.py`:
+
+```python
+FINAL_EXPLANATION_PROMPT = """
+You are a compassionate loan officer at an Indian bank writing a decision communication to a student.
+
+Student summary: {profile_summary}
+Document check: {doc_verdict}
+Eligibility assessment: {eligibility_rationale}
+Policy compliance: {policy_flags}
+Decision band: {band}
+PQ override applied: {pq_override}
+
+Write the following in plain, empathetic language a rural Indian student can understand:
+1. A 2-sentence explanation of the decision (never use jargon, never mention "composite score" or "algorithm")
+2. If band is "rejected" or "review": provide exactly 3 specific, actionable steps the student can take to improve their application next cycle
+3. If band is "approved": one encouraging sentence about their journey ahead
+4. If pq_override is true: include one sentence acknowledging their exceptional potential that drove the approval
+
+Return ONLY valid JSON. No markdown:
+{{
+  "explanation": "<2 sentence explanation in simple language>",
+  "improvement_hints": ["<specific hint 1>", "<specific hint 2>", "<specific hint 3>"]
+}}
+"""
+```
+
+Write `ai_service/app/prompts/mcq_rubric.json`:
+
+```json
+{
+  "option_index_to_score": {
+    "0": 0,
+    "1": 33,
+    "2": 66,
+    "3": 100
+  },
+  "description": "Option index 0 is worst behavioral response, index 3 is best. Indices are string keys of the selected option position in the options array."
+}
+```
+
+---
+
+## STEP 9 — OCR PIPELINE
+
+Write full implementation of `ai_service/app/pipelines/ocr_pipeline.py`.
+
+```python
+FIELDS_BY_DOC_TYPE = {
+    "aadhaar": ["name", "dob", "gender", "aadhaar_last4", "address_state"],
+    "pan": ["name", "pan_number", "dob"],
+    "marksheet": ["student_name", "institution", "year", "percentage_or_cgpa", "pass_fail"],
+    "income_cert": ["holder_name", "annual_income", "issuing_authority", "issue_date"],
+    "bank_passbook": ["account_holder_name", "account_number_last4", "bank_name", "ifsc"],
+    "semester_marksheet": ["student_name", "semester_number", "sgpa", "result"]
+}
+
+async def run(minio_path: str, doc_type: str, minio_client, llm_call_fn) -> dict:
+```
+
+Full logic:
+1. Fetch bytes from MinIO via minio_client
+2. If `.pdf` in minio_path: use pdf2image.convert_from_bytes(), else PIL.Image.open(BytesIO(bytes))
+3. For each image: run PaddleOCR(use_angle_cls=True, lang='en') — extract text blocks + confidence scores
+4. Concatenate all text blocks into raw_text string
+5. avg_confidence = mean of all per-block confidence scores (0.0-1.0 range)
+6. Build extraction prompt: "Extract these specific fields from this {doc_type} document. Document text: {raw_text}. Fields needed: {fields}. Return ONLY JSON with exactly these keys: {fields}. Use null for any field you cannot find."
+7. Call llm_call_fn(prompt) — parse JSON response
+8. If JSON parse fails: retry llm once, if still fails return {field: null for field in fields}
+9. completeness = len([v for v in extracted.values() if v is not None]) / len(fields)
+10. doc_trust_score = round(avg_confidence * 0.6 + completeness * 0.4, 4)
+11. doc_authentic = doc_trust_score >= 0.5
+12. Return {"ocr_extracted": extracted, "doc_trust_score": doc_trust_score, "doc_authentic": doc_authentic}
+
+Handle exception at top level: return {"ocr_extracted": {}, "doc_trust_score": 0.0, "doc_authentic": False}
+
+---
+
+## STEP 10 — FACE MATCH PIPELINE
+
+Write full implementation of `ai_service/app/pipelines/face_match_pipeline.py`.
+
+```python
+async def run(
+    aadhaar_path: str,
+    selfie_path: str,
+    minio_client,
+    insightface_app,   # globally loaded FaceAnalysis instance
+    qdrant_service,
+    user_id: str,
+    app_id: str
+) -> FaceMatchResult:
+```
+
+Full logic:
+1. Fetch both files from MinIO concurrently with asyncio.gather
+2. Convert each bytes → PIL Image → np.array (BGR for InsightFace: cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+3. `faces_a = await asyncio.to_thread(insightface_app.get, aadhaar_np)`
+4. `faces_b = await asyncio.to_thread(insightface_app.get, selfie_np)`
+5. If either list is empty: return FaceMatchResult(face_match_score=0.0, face_match_pass=False, flag="no_face_detected")
+6. emb_a = faces_a[0].embedding (512-dim numpy array) — normalize: emb / np.linalg.norm(emb)
+7. emb_b = faces_b[0].embedding — normalize same
+8. score = float(np.dot(emb_a, emb_b))  # cosine sim of unit vectors
+9. Thresholds:
+   - score >= 0.85 → flag="passed", face_match_pass=True
+   - 0.70 <= score < 0.85 → flag="manual_review", face_match_pass=False
+   - score < 0.70 → flag="failed", face_match_pass=False
+10. Store selfie embedding in Qdrant "face_embeddings" (dim=512, Cosine):
+    id = hashlib.sha256(user_id.encode()).hexdigest()
+    payload = {"user_id": user_id, "app_id": app_id}
+    await qdrant_service.upsert("face_embeddings", id, emb_b.tolist(), payload)
+11. Return FaceMatchResult(face_match_score=round(score, 4), face_match_pass=face_match_pass, flag=flag)
+
+Wrap entire function in try/except — on any error return FaceMatchResult(score=0.0, pass=False, flag="failed")
+
+---
+
+## STEP 11 — BEHAVIORAL PIPELINE
+
+Write full implementation of `ai_service/app/pipelines/behavioral_pipeline.py`.
+
+**generate_questions(profile: dict, app_id: str, redis_service, llm_call_fn) → list[dict]**
+
+1. Build profile_context:
+   ```
+   "Student is studying {course} at {institution} (NIRF rank: {nirf_rank}) in {state}, India.
+   Family income: ₹{annual_income}/year. Last exam result: {percentage}%.
+   Category: {category}. Loan requested: ₹{loan_amount} for {loan_tenure} years.
+   Gender: {gender}. Age: computed from dob."
+   ```
+2. Format QUESTION_GENERATION_PROMPT with profile_context
+3. Call llm_call_fn(prompt)
+4. Parse JSON array — validate exactly 8 items with required fields
+5. If invalid: retry once with explicit error correction prompt: "Your previous response was invalid. Return ONLY a valid JSON array of exactly 8 question objects with fields: question_id, question_text, type, options, dimension."
+6. Cache in Redis: key=`questions:{app_id}`, ttl=3600, value=json.dumps(questions)
+7. Return questions list
+
+**score_answers(app_id: str, answers: list[AnswerItem], redis_service, llm_call_fn) → BehavioralResult**
+
+1. Fetch questions from Redis key `questions:{app_id}` — if missing, raise ValueError("Questions not found for app_id")
+2. Load mcq_rubric.json
+3. Build question lookup dict: {q.question_id: q for q in questions}
+4. For each answer:
+   - If question type == "mcq": score = mcq_rubric["option_index_to_score"][answer.answer]
+   - If question type == "free_text": call llm_call_fn with ANSWER_SCORING_PROMPT, parse {"score": int, "reasoning": str}, validate 0-100, retry once if invalid, default 50 if still invalid
+5. Map each question's score to its dimension
+6. Dimension weighted average (weights must sum to 1.0):
+   fin_resp=0.20, resilience=0.20, goal_clarity=0.20, risk_aware=0.15, initiative=0.15, social_cap=0.10
+7. pq_score = sum(dim_score * weight for dim, weight in weights.items())
+8. pq_score = round(min(100.0, max(0.0, pq_score)), 2)
+9. time_flags = ["suspiciously_fast"] if sum(a.time_taken_seconds for a in answers) < 60 else []
+10. question_hash = hashlib.sha256(",".join(sorted(q["question_id"] for q in questions)).encode()).hexdigest()
+11. Return BehavioralResult with:
+    - pq_score
+    - dimension_scores=DimensionScores(fin_resp=..., resilience=..., goal_clarity=..., risk_aware=..., initiative=..., social_cap=...)
+    - question_hash
+    - time_flags
+
+---
+
+## STEP 12 — FRAUD PIPELINE
+
+Write full implementation of `ai_service/app/pipelines/fraud_pipeline.py`.
+
+```python
+async def run_all(
+    app_id: str,
+    user_id: str,
+    pan_number: str,       # raw PAN from OCR — hash before sending to Person B
+    aadhaar_number: str,   # raw Aadhaar — hash before sending
+    mobile: str,
+    doc_ids: list[str],
+    selfie_embedding: list[float],   # 512-dim from face match step
+    backend_client,
+    qdrant_service
+) -> FraudResult:
+```
+
+Implement each check as a separate async function, run all 5 via asyncio.gather:
+
+1. `check_duplicate_pan(pan_number, backend_client) → FraudCheck`:
+   - hash = hashlib.sha256(pan_number.upper().encode()).hexdigest()
+   - exists = await backend_client.check_pan(hash)
+   - FraudCheck(check_name="duplicate_pan", passed=not exists, reason="PAN already registered" if exists else None)
+
+2. `check_duplicate_aadhaar(aadhaar_number, backend_client) → FraudCheck`:
+   - hash = hashlib.sha256(re.sub(r'\s', '', aadhaar_number).encode()).hexdigest()
+   - FraudCheck(check_name="duplicate_aadhaar", passed=not exists, ...)
+
+3. `check_face_pool(user_id, selfie_embedding, qdrant_service) → FraudCheck`:
+   - results = await qdrant_service.search("face_embeddings", selfie_embedding, limit=5, score_threshold=0.92)
+   - fraud = any(r.payload["user_id"] != user_id for r in results)
+   - FraudCheck(check_name="face_pool_duplicate", passed=not fraud, reason="Face matches another account" if fraud else None)
+
+4. `check_doc_metadata(doc_ids, backend_client) → FraudCheck`:
+   - For hackathon: call backend_client GET /documents/{doc_id}/status for each doc
+   - Check if doc status shows any tamper flag in returned metadata
+   - FraudCheck(check_name="doc_metadata", passed=True if no tamper else False, ...)
+
+5. `check_velocity(user_id, backend_client) → FraudCheck`:
+   - count = await backend_client.get_app_count(user_id, days=30)
+   - fraud = count > 2
+   - FraudCheck(check_name="velocity_check", passed=not fraud, reason=f"{count} applications in 30 days" if fraud else None)
+
+Aggregation:
+- Hard fails (fraud_flag=True if ANY of checks 1, 2, or 3 failed)
+- fraud_reasons = [c.reason for c in checks if not c.passed and c.reason]
+- fraud_confidence = round((len([c for c in checks if not c.passed]) / 5) * 100, 2)
+- Return FraudResult(app_id=app_id, fraud_flag=fraud_flag, fraud_reasons=fraud_reasons, fraud_confidence=fraud_confidence, checks=checks)
+
+---
+
+## STEP 13 — SCHOLARSHIP PIPELINE
+
+Write full implementation of `ai_service/app/pipelines/scholarship_pipeline.py`.
+
+```python
+async def match(
+    user_id: str,
+    app_id: str,
+    backend_client,
+    qdrant_service,
+    embedder,        # globally loaded SentenceTransformer instance
+    llm_call_fn
+) -> ScholarshipResult:
+```
+
+1. profile = await backend_client.get_profile(user_id) — if None, return ScholarshipResult(app_id=app_id, matched_scholarships=[], total_scholarship_value=0)
+2. Build profile_text: "Student studying {course} at {institution} in {state}. Category: {category}. Family income: ₹{annual_income}/year. Academic score: {percentage}%. Gender: {gender}. Loan type: {type}."
+3. embedding = await asyncio.to_thread(embedder.encode, profile_text) — convert to list[float]
+4. results = await qdrant_service.search("scholarships", embedding.tolist(), limit=15)
+5. Filter results:
+   - deadline > today (parse ISO date)
+   - payload["category"] == ["all"] OR profile["category"].lower() in [c.lower() for c in payload["category"]]
+   - payload["max_family_income"] is None OR profile["annual_income"] <= payload["max_family_income"]
+   - payload["min_percentage"] is None OR profile["percentage"] >= payload["min_percentage"]
+6. Take top 5 after filtering, ranked by score
+7. For each filtered result, generate reason:
+   prompt = f"In one sentence, explain specifically why this student qualifies for '{scholarship_name}'. Student: {profile_text}. Scholarship: {description}. Return ONLY the sentence, no quotes."
+   reason = await asyncio.to_thread(llm_call_fn, prompt)  — strip whitespace
+8. Build ScholarshipMatch objects
+9. total_scholarship_value = sum(s.amount for s in matched)
+10. Return ScholarshipResult(app_id=app_id, matched_scholarships=matched, total_scholarship_value=total_scholarship_value)
+
+---
+
+## STEP 14 — LANGGRAPH ORCHESTRATOR
+
+Write `ai_service/app/agents/orchestrator.py` and all 5 agent files.
+
+**AgentState TypedDict** (in orchestrator.py):
+```python
+class AgentState(TypedDict):
+    app_id: str
+    user_id: str
+    composite_score: float
+    band: str                    # "approved"|"rejected"|"review"
+    profile: dict
+    doc_statuses: dict
+    fraud_flag: bool
+    pq_score: float
+    loan_amount: float
+    course: str
+    institution: str
+    profile_summary: str         # set by profile_agent
+    doc_verdict: str             # set by doc_verification_agent
+    eligibility_rationale: str   # set by eligibility_eval_agent
+    policy_flags: list[str]      # set by policy_compliance_agent
+    final_decision: str          # set by final_approval_agent
+    explanation: str             # set by final_approval_agent
+    improvement_hints: list[str] # set by final_approval_agent
+    pq_override: bool            # True if PQ>=80 overrode borderline score
+```
+
+**Graph definition**:
+```
+profile_agent → doc_verification_agent → eligibility_eval_agent → policy_compliance_agent → final_approval_agent → END
+```
+Conditional edge after profile_agent: if state["fraud_flag"] == True → jump directly to final_approval_agent (skip doc/eligibility/policy agents).
+
+Write each agent in its own file as `async def run(state: AgentState, llm_call_fn) -> AgentState`:
+
+**profile_agent.py**:
+Prompt: "You are reviewing a student loan application. Summarize this student profile for a bank loan committee in exactly 3 sentences. First sentence: academic and financial background. Second sentence: loan request context. Third sentence: key strengths and risks. Profile data: {profile}"
+Set state["profile_summary"] = response. Return state.
+
+**doc_verification_agent.py**:
+Prompt: "You are a document verification officer. Based on these KYC document results, write exactly 2 sentences as a formal verification verdict. Doc statuses: {doc_statuses}"
+Set state["doc_verdict"] = response. Return state.
+
+**eligibility_eval_agent.py**:
+Prompt: "You are an eligibility analyst. The student scored {composite_score}/100 overall (band: {band}). Their Potential Quotient score is {pq_score}/100. PQ override applied: {pq_override}. Write 3 sentences: what drove the composite score, what the PQ score reveals about the student's non-academic potential, and how these combine into the final band."
+Set state["eligibility_rationale"] = response. Return state.
+
+**policy_compliance_agent.py**:
+Prompt: "You are an RBI compliance officer. Review this education loan request: ₹{loan_amount} for {course} at {institution}. Check against: IBA Model Education Loan Scheme limits, RBI priority sector guidelines, CSIS interest subsidy eligibility. List any compliance flags as a JSON array of strings. If all clear, return []. Return ONLY a JSON array."
+Parse as list[str]. Set state["policy_flags"] = parsed_list. Return state.
+
+**final_approval_agent.py**:
+Format FINAL_EXPLANATION_PROMPT with all state fields. Parse JSON {"explanation": str, "improvement_hints": list[str]}.
+Set state["explanation"] = result["explanation"]
+Set state["improvement_hints"] = result["improvement_hints"]
+Set state["final_decision"] = state["band"]
+Return state.
+
+**orchestrator.py** `run()` function:
+```python
+async def run(app_id, user_id, composite_score, band, pq_score, profile, doc_statuses, fraud_flag, backend_client, llm_call_fn):
+    # Build initial state
+    # Compile and run StateGraph
+    # After completion, call backend_client.post_explanation_result(ExplanationResult(...))
+    # Also produce Kafka event: approval.decided with payload {app_id, decision: band, approved_amount: profile.get("loan_amount"), reason: final_state["explanation"]}
+```
+
+---
+
+## STEP 15 — KAFKA
+
+Write `ai_service/app/kafka/consumer.py`:
+- Use `aiokafka.AIOKafkaConsumer`
+- Topics: ["document.uploaded", "app.submitted", "eligibility.calculated"]
+- group_id=KAFKA_GROUP_ID (ai-svc), auto_offset_reset="earliest"
+- Run as coroutine, dispatch by topic to handlers
+- Every message wrapped in try/except — log exception, continue — NEVER crash the loop
+- On startup: wait for Kafka to be ready with 3 connection retries, 5s delay each
+
+Write `ai_service/app/kafka/producer.py`:
+- `async produce(topic: str, payload: dict) → None`
+- Auto-include: event_id=uuid4(), timestamp=utcnow().isoformat(), topic in payload
+- Silently log and continue on failure
+
+Write `ai_service/app/kafka/handlers.py` — full implementation:
+
+**handle_doc_uploaded(event: dict)**:
+```
+payload: {doc_id, user_id, doc_type, minio_path, app_id}
+
+1. result = await ocr_pipeline.run(minio_path, doc_type, minio_client, settings.make_llm_call)
+2. kyc_payload = KYCResult(user_id=..., doc_id=..., doc_type=..., ocr_extracted=result["ocr_extracted"], doc_authentic=result["doc_authentic"], doc_trust_score=result["doc_trust_score"])
+
+3. If doc_type in ["aadhaar", "selfie"]:
+   - redis_key_this = f"{'aadhaar' if doc_type=='aadhaar' else 'selfie'}_path:{user_id}"
+   - redis_key_other = f"{'selfie' if doc_type=='aadhaar' else 'aadhaar'}_path:{user_id}"
+   - await redis_service.set_str(redis_key_this, minio_path, ttl=3600)
+   - other_path = await redis_service.get_str(redis_key_other)
+   - If other_path is not None:
+     aadhaar_p = minio_path if doc_type=="aadhaar" else other_path
+     selfie_p = other_path if doc_type=="aadhaar" else minio_path
+     face_result = await face_match_pipeline.run(aadhaar_p, selfie_p, minio_client, insightface_app, qdrant_service, user_id, event["app_id"])
+     kyc_payload.face_match_score = face_result.face_match_score
+     kyc_payload.face_match_pass = face_result.face_match_pass
+
+4. await backend_client.post_kyc_result(kyc_payload)
+5. await kafka_producer.produce("kyc.verified", {"user_id": user_id, "doc_trust_score": result["doc_trust_score"], "face_match_pass": kyc_payload.face_match_pass})
+```
+
+**handle_app_submitted(event: dict)**:
+```
+payload: {app_id, user_id, type}
+
+1. profile = await backend_client.get_profile(user_id) or {}
+2. questions = await behavioral_pipeline.generate_questions(profile, app_id, redis_service, settings.make_llm_call)
+   — questions are now cached in Redis under questions:{app_id}
+
+3. pan_number = profile.get("pan_number", "")
+   aadhaar_number = profile.get("aadhaar_number", "")
+   selfie_embedding = (await redis_service.get_json(f"face_embedding:{user_id}")) or []
+
+4. fraud_result = await fraud_pipeline.run_all(app_id, user_id, pan_number, aadhaar_number, profile.get("mobile",""), [], selfie_embedding, backend_client, qdrant_service)
+
+5. await backend_client.post_fraud_result(fraud_result)
+6. await kafka_producer.produce("fraud.checked", {"app_id": app_id, "fraud_flag": fraud_result.fraud_flag, "fraud_reasons": fraud_result.fraud_reasons})
+```
+
+**handle_eligibility_done(event: dict)**:
+```
+payload: {app_id, user_id, composite_score, band}
+
+1. scholarship_result = await scholarship_pipeline.match(user_id, app_id, backend_client, qdrant_service, embedder, settings.make_llm_call)
+   await backend_client.post_scholarship_result(scholarship_result)
+
+2. profile = await backend_client.get_profile(user_id) or {}
+   behavioral_cache = await redis_service.get_json(f"behavioral_result:{app_id}") or {}
+   pq_score = behavioral_cache.get("pq_score", 0.0)
+   pq_override = 50 <= composite_score <= 69 and pq_score >= 80
+
+3. await orchestrator.run(app_id, user_id, composite_score, band, pq_score, profile, {}, False, backend_client, settings.make_llm_call)
+4. await kafka_producer.produce("approval.decided", {"app_id": app_id, "decision": band, "approved_amount": profile.get("loan_amount"), "reason": "See explanation result"})
+```
+
+---
+
+## STEP 16 — ROUTERS
+
+Write `ai_service/app/routers/health.py`:
+```python
+GET /health → HealthResponse
+- Check: app.state.models_loaded
+- Check Qdrant: try qdrant_service.search("scholarships", [0]*384, limit=1), set qdrant_ok=True
+- Check Kafka: check consumer task is running
+- Return HealthResponse(status="ok", models_loaded=..., kafka_connected=..., qdrant_connected=..., llm_provider=settings.llm_provider)
+```
+
+Write `ai_service/app/routers/behavioral.py`:
+
+```python
+GET /behavioral/questions?app_id={app_id}
+# Person B calls this to serve questions to Person A
+1. questions_raw = await redis_service.get_json(f"questions:{app_id}")
+2. If None: raise HTTPException(404, "Questions not generated yet for this application")
+3. Parse into list[QuestionItem], return QuestionResponse(app_id=app_id, questions=...)
+
+POST /behavioral/submit
+# Receives SubmitAnswersRequest from Person B (which got it from Person A)
+1. result = await behavioral_pipeline.score_answers(body.app_id, body.answers, redis_service, settings.make_llm_call)
+2. Cache result: await redis_service.set_json(f"behavioral_result:{body.app_id}", result.model_dump(), ttl=86400)
+3. await backend_client.post_behavioral_result(result)
+4. await kafka_producer.produce("behavioral.scored", {"app_id": body.app_id, "pq_score": result.pq_score, "dimension_scores": result.dimension_scores.model_dump()})
+5. Return result
+```
+
+Write `ai_service/app/routers/chat.py`:
+
+```python
+POST /chat/message
+# Person A calls this via Person B gateway for the chatbot widget
+# Supports en/hi/od languages (i18next on frontend)
+1. Generate/reuse conversation_id (uuid4 if not provided)
+2. Embed body.message using app.state.embedder
+3. results = await qdrant_service.search("loan_policies", embedding.tolist(), limit=3)
+4. context = "\n\n".join([r.payload.get("text","") for r in results])
+5. history = await redis_service.get_json(f"chat:{conversation_id}") or []
+6. language_instruction = {
+       "en": "Respond in English.",
+       "hi": "हिंदी में जवाब दें।",
+       "od": "ଓଡ଼ିଆ ରେ ଉତ୍ତର ଦିଅ।"
+   }[body.language]
+7. system = f"You are a helpful student loan and scholarship assistant for Indian students. Be concise, accurate, and empathetic. {language_instruction} Use the provided context to answer. If context is insufficient, use your knowledge about Indian education loan schemes."
+8. messages_for_llm = history[-10:] + [{"role": "user", "content": body.message}]
+9. If context: prepend context as system message
+10. Call settings.make_llm_call with full message chain
+11. Append user message + reply to history, keep last 10
+12. await redis_service.set_json(f"chat:{conversation_id}", history[-10:], ttl=86400)
+13. sources = [r.payload.get("source","") for r in results if r.payload.get("source")]
+14. Return ChatResponse(reply=reply, sources=sources, conversation_id=conversation_id)
+```
+
+---
+
+## STEP 17 — MAIN.PY
+
+Write `ai_service/app/main.py` with full FastAPI lifespan:
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── STARTUP ──
+    logger.info("=== AI Service starting up ===")
+    
+    # 1. Load InsightFace (buffalo_l) — expensive, 30s first time
+    logger.info("Loading InsightFace buffalo_l...")
+    face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+    face_app.prepare(ctx_id=0, det_size=(640, 640))
+    app.state.insightface = face_app
+    logger.info("InsightFace loaded ✓")
+    
+    # 2. Load SentenceTransformer
+    logger.info("Loading sentence-transformers all-MiniLM-L6-v2...")
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    app.state.embedder = embedder
+    logger.info("SentenceTransformer loaded ✓")
+    
+    # 3. Pre-warm PaddleOCR (triggers model download on first run ~500MB)
+    logger.info("Pre-warming PaddleOCR...")
+    dummy_img = np.zeros((100, 300, 3), dtype=np.uint8)
+    ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+    ocr.ocr(dummy_img, cls=True)
+    app.state.ocr = ocr
+    logger.info("PaddleOCR ready ✓")
+    
+    # 4. Initialize Qdrant collections
+    logger.info("Initializing Qdrant collections...")
+    await qdrant_service.ensure_collection("scholarships", 384, "Cosine")
+    await qdrant_service.ensure_collection("loan_policies", 384, "Cosine")
+    await qdrant_service.ensure_collection("face_embeddings", 512, "Cosine")
+    logger.info("Qdrant collections ready ✓")
+    
+    # 5. Ensure MinIO bucket exists
+    await minio_client.ensure_bucket(settings.minio_bucket)
+    
+    # 6. Seed scholarships if collection is empty
+    scholarship_check = await qdrant_service.search("scholarships", [0.0]*384, limit=1)
+    if not scholarship_check:
+        logger.info("Seeding scholarships into Qdrant...")
+        await seed_scholarships(embedder, qdrant_service)
+        logger.info("Scholarships seeded ✓")
+    
+    # 7. Start Kafka consumer as background task
+    app.state.kafka_task = asyncio.create_task(start_kafka_consumer(app))
+    logger.info("Kafka consumer started ✓")
+    
+    app.state.models_loaded = True
+    logger.info("=== AI Service ready on port 8001 ===")
+    
+    yield
+    
+    # ── SHUTDOWN ──
+    app.state.kafka_task.cancel()
+    logger.info("AI Service shut down cleanly")
+
+app = FastAPI(title="Hackforge AI Service", version="1.0.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.include_router(health_router)
+app.include_router(behavioral_router, prefix="/behavioral")
+app.include_router(chat_router, prefix="/chat")
+```
+
+---
+
+## STEP 18 — SCHOLARSHIP DATA
+
+Write `ai_service/data/scholarships.json` — array of exactly 22 real entries. Use real names, real amounts, real sources. Include ALL of these:
+
+1. Post Matric Scholarship for SC Students (NSP/Central) — ₹75000, category:["sc"], all states
+2. Post Matric Scholarship for ST Students (NSP/Central) — ₹75000, category:["st"], all states
+3. Post Matric Scholarship for OBC Students (NSP) — ₹50000, category:["obc"], max_income:300000
+4. Post Matric Scholarship for Minorities (NSP/Maulana Azad) — ₹50000, category:["minority"]
+5. Prerana Scholarship — Odisha SC/ST (Odisha state) — ₹40000, state:"odisha", category:["sc","st"]
+6. Medhabruti Scholarship — Odisha merit (Odisha state) — ₹24000, state:"odisha", min_percentage:60
+7. Aakanksha Scholarship — Odisha SC girl students (Odisha state) — ₹30000, state:"odisha", category:["sc"], gender:"F"
+8. Nirman Scholarship — Odisha EWS (Odisha state) — ₹20000, state:"odisha", category:["ews"], max_income:250000
+9. NSP Top Class Education for SC — ₹200000, category:["sc"], min_percentage:60
+10. Dr. Ambedkar Post-Matric Scholarship EBC/DNT — ₹35000, category:["ebc","dnt"]
+11. NTPC Scholarship for SC/ST — ₹24000/year, category:["sc","st"], min_percentage:60
+12. HDFC Educational Crisis Scholarship Trust — ₹75000 one-time, max_income:500000
+13. Tata Capital Pankh Scholarship — ₹12000/year, max_income:400000, min_percentage:50
+14. Vidyasaarathi (NSDL) — ₹25000, merit-cum-means, min_percentage:55
+15. Pragati Scholarship AICTE (girl students, technical) — ₹50000, gender:"F", course:["engineering","technology"]
+16. Saksham Scholarship AICTE (PwD) — ₹50000, category:["pwd"]
+17. Central Sector Scheme MHRD — ₹20000/year, merit-cum-means, min_percentage:80
+18. ONGC Scholarship SC/ST/OBC — ₹48000/year, category:["sc","st","obc"], min_percentage:60
+19. Ishan Uday NE + Special States (Odisha eligible border areas) — ₹43000/year
+20. L'Oreal India For Young Women in Science — ₹250000, gender:"F", course:["science"]
+21. Reliance Foundation Scholarship — ₹200000, merit-cum-means, min_percentage:60
+22. PM Scholarship Scheme CAPF (wards of central armed police) — ₹36000/year, category:["capf"]
+
+Each entry format:
+```json
+{
+  "id": "s001",
+  "name": "...",
+  "amount": 75000,
+  "state": "all",
+  "category": ["sc"],
+  "course_type": ["graduation", "post_graduation"],
+  "deadline": "2025-12-31",
+  "source": "NSP",
+  "max_family_income": 250000,
+  "min_percentage": 50.0,
+  "gender": "any",
+  "description": "..."
+}
+```
+
+---
+
+## STEP 19 — SEED SCRIPTS
+
+Write `ai_service/scripts/seed_qdrant.py`:
+- Load data/scholarships.json
+- Load SentenceTransformer("all-MiniLM-L6-v2")
+- For each scholarship: encode description → upsert into Qdrant "scholarships" collection
+- Also seed 5 loan_policies entries (RBI education loan guidelines, CSIS scheme, Vidya Lakshmi, IBA model scheme, PM Vidya Lakshmi) into "loan_policies" collection
+- Print count of seeded items
+
+Write `ai_service/scripts/demo_seed.py`:
+Rajan's full pre-seeded journey for instant demo playback:
+
+```python
+DEMO_APP_ID = "demo-rajan-001"
+DEMO_USER_ID = "demo-user-rajan"
+
+RAJAN_PROFILE = {
+    "user_id": DEMO_USER_ID,
+    "full_name": "Rajan Kumar Behera",
+    "course": "B.Com (Hons)",
+    "institution": "Ravenshaw University, Cuttack",
+    "nirf_rank": "unranked",
+    "state": "odisha",
+    "category": "sc",
+    "gender": "M",
+    "annual_income": 280000,
+    "percentage": 60.0,
+    "loan_amount": 400000,
+    "loan_tenure": 5,
+    "mobile": "9999999999"
+}
+
+RAJAN_QUESTIONS = [
+    # Pre-generated questions that produce PQ=88 when answered optimally
+    # Include 8 questions matching the dimension distribution
+    # These are cached so Groq is never called for Rajan during demo
+]
+
+RAJAN_BEHAVIORAL_RESULT = {
+    "app_id": DEMO_APP_ID,
+    "pq_score": 88.0,
+    "dimension_scores": {
+        "fin_resp": 80.0,
+        "resilience": 95.0,
+        "goal_clarity": 90.0,
+        "risk_aware": 82.0,
+        "initiative": 92.0,
+        "social_cap": 88.0
+    },
+    "question_hash": "preseeded",
+    "time_flags": []
+}
+
+# Seed:
+# 1. Cache questions in Redis: questions:{DEMO_APP_ID} TTL=86400
+# 2. Cache behavioral result: behavioral_result:{DEMO_APP_ID} TTL=86400
+# 3. Print "Demo seed complete — Rajan is ready"
+```
+
+---
+
+## STEP 20 — TESTS
+
+Write `ai_service/tests/test_behavioral.py`:
+- test_mcq_scoring: verify MCQ index 0→0, 1→33, 2→66, 3→100
+- test_dimension_weights_sum_to_one: assert sum of weights == 1.0
+- test_pq_score_range: pq_score always 0-100
+- test_suspicious_fast_flag: answers in <60s total → time_flags contains "suspiciously_fast"
+- test_question_validation: exactly 8 questions required, raise on 7 or 9
+
+Write `ai_service/tests/test_fraud.py`:
+- test_hard_fail_on_duplicate_pan: fraud_flag=True when pan check fails
+- test_fraud_confidence_calculation: 2 of 5 checks fail → confidence=40.0
+- test_soft_fail_no_flag: velocity check alone failing → fraud_flag=False (not a hard fail)
+
+Write `ai_service/tests/test_face_match.py`:
+- test_threshold_passed: score 0.90 → flag="passed", pass=True
+- test_threshold_manual_review: score 0.77 → flag="manual_review", pass=False
+- test_threshold_failed: score 0.65 → flag="failed", pass=False
+- test_no_face_detected: empty InsightFace response → flag="no_face_detected"
+
+Write `ai_service/tests/test_ocr.py`:
+- test_doc_trust_score_formula: avg_conf=0.8, completeness=0.75 → trust=0.78
+- test_doc_authentic_threshold: trust>=0.5 → authentic=True, <0.5 → False
+- test_fields_by_doc_type: aadhaar returns 5 fields, semester_marksheet returns 6 fields
+
+---
+
+## STEP 21 — FINAL VALIDATION
+
+After writing all files, run these checks:
+
+```bash
+cd ai_service
+source .venv/bin/activate
+
+# Syntax check all Python files
+python -c "
+import ast, os, sys
+errors = []
+for root, dirs, files in os.walk('app'):
+    dirs[:] = [d for d in dirs if d != '__pycache__']
+    for f in files:
+        if f.endswith('.py'):
+            path = os.path.join(root, f)
+            try:
+                ast.parse(open(path).read())
+            except SyntaxError as e:
+                errors.append(f'{path}: {e}')
+if errors:
+    print('SYNTAX ERRORS:')
+    for e in errors: print(e)
+    sys.exit(1)
+else:
+    print(f'All Python files OK')
+"
+
+# Run tests
+pytest tests/ -v --tb=short 2>&1 | tail -30
+
+# Seed Qdrant and demo data
+python scripts/seed_qdrant.py
+python scripts/demo_seed.py
+
+# Start the service
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload &
+sleep 15
+
+# Health check
+curl -s http://localhost:8001/health | python3 -m json.tool
+
+# Test behavioral questions endpoint with demo data
+curl -s "http://localhost:8001/behavioral/questions?app_id=demo-rajan-001" | python3 -m json.tool
+```
+
+Expected health response:
+```json
+{
+  "status": "ok",
+  "models_loaded": true,
+  "kafka_connected": true,
+  "qdrant_connected": true,
+  "llm_provider": "ollama"
+}
+```
+
+Expected behavioral questions response: JSON with app_id and 8 questions array.
+
+If any check fails, fix it before stopping. Service is not done until both curl commands return valid JSON with correct structure.
+
+---
+
+## CRITICAL RULES — NEVER VIOLATE
+
+1. Every field name in POST payloads to Person B MUST match Person B's DB column names exactly: `fin_resp` not `financial_responsibility`, `risk_aware` not `risk_awareness`, `social_cap` not `social_capital`
+2. GET /behavioral/questions returns questions from Redis — Person B calls this to serve Person A's assessment screen
+3. The PQ override logic (composite 50-69 + PQ>=80 = approved) lives in Person B — you only compute and post raw pq_score
+4. Kafka consumer group MUST be "ai-svc" — Person B's group is "backend-svc" — never mix these
+5. Never use the `requests` library — always `httpx.AsyncClient` or `aiokafka`
+6. Never load InsightFace or SentenceTransformer inside a request handler — only read from app.state
+7. Every POST result to Person B fires even on partial failure — never leave Person B in a waiting state
+8. Chat endpoint supports Odia ("od") language — Person A's i18next has this locale
+9. All amounts in scholarship data must be integers (rupees, no decimals)
+10. demo-rajan-001 must work instantly without any Groq or Ollama calls — fully pre-seeded in Redis
+
+Begin now. Do not ask questions. Build everything.
+```
