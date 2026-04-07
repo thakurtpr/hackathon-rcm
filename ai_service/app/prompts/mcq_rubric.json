@@ -1,0 +1,9 @@
+{
+  "option_index_to_score": {
+    "0": 0,
+    "1": 33,
+    "2": 66,
+    "3": 100
+  },
+  "description": "Option index 0 is worst behavioral response, index 3 is best. Indices are string keys of the selected option position in the options array."
+}

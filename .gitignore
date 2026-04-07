@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment
+.env
+!.env.example
+
+# Models & data caches
+*.onnx
+*.onnx_model/
+insightface_buffalo_l/
+~/.insightface/
+.paddleocr/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+/tmp/
