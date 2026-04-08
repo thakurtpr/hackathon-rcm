@@ -22,7 +22,7 @@ metadata:
   namespace: hackforge
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: standard
   resources:
     requests:
       storage: 5Gi
@@ -34,7 +34,7 @@ metadata:
   namespace: hackforge
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: standard
   resources:
     requests:
       storage: 1Gi
@@ -46,7 +46,7 @@ metadata:
   namespace: hackforge
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: standard
   resources:
     requests:
       storage: 10Gi
@@ -58,7 +58,7 @@ metadata:
   namespace: hackforge
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: local-path
+  storageClassName: standard
   resources:
     requests:
       storage: 5Gi
