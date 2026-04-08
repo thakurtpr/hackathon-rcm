@@ -438,8 +438,12 @@ async def _api_submit_behavioral(app_id: str, user_id: str, answers: list) -> bo
             ],
         }
         # Call ourselves (AI service behavioral submit)
+        # FIX: Use Docker service name instead of localhost — inside Docker,
+        # localhost resolves to the container's own loopback, not ai-service.
+        # IDEAL: inject the base URL via settings.ai_service_base_url so it's
+        # configurable per environment (Docker vs local dev vs prod).
         settings = get_settings()
-        ai_base = f"http://localhost:{settings.ai_service_port}"
+        ai_base = f"http://ai-service:{settings.ai_service_port}"
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(f"{ai_base}/behavioral/submit", json=payload)
             return resp.status_code < 400
@@ -913,9 +917,12 @@ async def handle_behavioral_assessment(
 async def _fetch_or_generate_questions(app_id: str, user_id: str, conv_data: dict) -> list:
     """Fetch from behavioral API or generate via pipeline."""
     try:
+        # FIX: Use Docker service name + config port instead of hardcoded localhost:8001.
+        # IDEAL: This URL should come from settings.ai_service_base_url (env-configurable).
+        settings = get_settings()
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
-                "http://localhost:8001/behavioral/questions",
+                f"http://ai-service:{settings.ai_service_port}/behavioral/questions",
                 params={"app_id": app_id, "user_id": user_id},
             )
             if resp.status_code == 200:

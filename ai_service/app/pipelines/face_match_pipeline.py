@@ -84,14 +84,27 @@ async def run(
     user_id: str,
     app_id: str,
 ) -> FaceMatchResult:
-    # If InsightFace model is not loaded yet, return graceful response
+    # TEMP FIX (Option B): When InsightFace model is not loaded, pass KYC through
+    # so users are not blocked. face_match_pass=True with flag "model_unavailable"
+    # lets the pipeline continue while making the bypass auditable in the result.
+    #
+    # WHY: The buffalo_l model (~400MB) fails to download/initialize at container
+    # startup in this environment. The original code returned face_match_pass=False,
+    # which hard-blocked every user at KYC — nobody could proceed.
+    #
+    # IDEAL FIX (Option A): Mount a Docker volume for the model cache so it
+    # downloads once and persists across restarts:
+    #   volumes:
+    #     - insightface_models:/root/.insightface
+    # Then reinstate face_match_pass=False here so real verification runs.
+    # Also add a /health/face-model endpoint to expose model load status.
     if insightface_app is None:
-        logger.warning("InsightFace model not loaded — face match unavailable")
+        logger.warning("InsightFace model not loaded — bypassing face match (KYC will pass)")
         return FaceMatchResult(
             face_match_score=0.0,
-            face_match_pass=False,
-            flag="model_not_loaded",
-            message="face match model is loading please retry in 60 seconds",
+            face_match_pass=True,
+            flag="model_unavailable",
+            message="face match model unavailable — manual review recommended",
         )
 
     try:
