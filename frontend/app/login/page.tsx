@@ -23,6 +23,21 @@ export default function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const [apiError, setApiError] = useState('');
   const [otpStep, setOtpStep] = useState(false);
+
+  // Redirect to dashboard if already authenticated
+  React.useEffect(() => {
+    const raw = typeof window !== 'undefined' ? window.sessionStorage.getItem('auth-storage') : null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { state?: { accessToken?: string | null } };
+        if (parsed?.state?.accessToken) {
+          router.replace('/dashboard');
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [router]);
   const [otpToken, setOtpToken] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [pendingUserId, setPendingUserId] = useState('');

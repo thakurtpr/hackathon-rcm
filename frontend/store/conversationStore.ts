@@ -49,6 +49,7 @@ interface ConversationStore {
   addMessage: (convId: string, msg: Omit<Message, 'id' | 'timestamp'>) => string;
   appendContent: (convId: string, msgId: string, chunk: string) => void;
   finalizeMessage: (convId: string, msgId: string) => void;
+  updateMessage: (convId: string, msgId: string, content: string) => void;
   setTitle: (convId: string, title: string) => void;
   setTyping: (v: boolean) => void;
   deleteConversation: (id: string) => void;
@@ -115,6 +116,21 @@ export const useConversationStore = create<ConversationStore>()(
                   ...c,
                   messages: c.messages.map((m) =>
                     m.id === msgId ? { ...m, isStreaming: false } : m
+                  ),
+                }
+              : c
+          ),
+        }));
+      },
+
+      updateMessage: (convId, msgId, content) => {
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === convId
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === msgId ? { ...m, content, isStreaming: false } : m
                   ),
                 }
               : c

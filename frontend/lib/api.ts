@@ -37,13 +37,24 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
-        const refreshToken = typeof window !== 'undefined' ? sessionStorage.getItem('refresh_token') : null;
+        const state = useAuthStore.getState();
+        const refreshToken =
+          state.refreshToken ||
+          (typeof window !== 'undefined' ? sessionStorage.getItem('refresh_token') : null);
         if (refreshToken) {
           const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken });
-          const { access_token, refresh_token: newRefresh } = res.data;
-          const currentUser = useAuthStore.getState().user;
-          if (currentUser) useAuthStore.getState().login(access_token, currentUser);
-          sessionStorage.setItem('refresh_token', newRefresh);
+          const { access_token, refresh_token: newRefresh } = res.data as { access_token: string; refresh_token?: string };
+          const currentUser = state.user;
+          state.login(
+            access_token,
+            currentUser || { id: state.userId || '', name: '' },
+            undefined,
+            undefined,
+            newRefresh,
+          );
+          if (newRefresh && typeof window !== 'undefined') {
+            sessionStorage.setItem('refresh_token', newRefresh);
+          }
           original.headers = original.headers ?? {};
           original.headers.Authorization = `Bearer ${access_token}`;
           return apiClient(original);
@@ -73,18 +84,31 @@ export async function registerUser(data: {
 
 export async function verifyOTP(data: { otp_token: string; otp_code: string }) {
   const res = await apiClient.post('/auth/verify-otp', data);
-  const { access_token, refresh_token, user_id, intent } = res.data;
-  if (refresh_token && typeof window !== 'undefined') {
-    sessionStorage.setItem('refresh_token', refresh_token);
+  const { access_token, refresh_token, user_id, intent } = res.data as {
+    access_token: string;
+    refresh_token?: string;
+    user_id: string;
+    intent?: string;
+  };
+  if (refresh_token) {
+    if (typeof window !== 'undefined') sessionStorage.setItem('refresh_token', refresh_token);
+    useAuthStore.getState().setRefreshToken(refresh_token);
   }
   return { access_token, refresh_token, user_id, intent };
 }
 
 export async function loginUser(data: { email: string; password: string }) {
   const res = await apiClient.post('/auth/login', data);
-  const { access_token, refresh_token, user_id, kyc_status, intent } = res.data;
-  if (refresh_token && typeof window !== 'undefined') {
-    sessionStorage.setItem('refresh_token', refresh_token);
+  const { access_token, refresh_token, user_id, kyc_status, intent } = res.data as {
+    access_token: string;
+    refresh_token?: string;
+    user_id: string;
+    kyc_status?: string;
+    intent?: string;
+  };
+  if (refresh_token) {
+    if (typeof window !== 'undefined') sessionStorage.setItem('refresh_token', refresh_token);
+    useAuthStore.getState().setRefreshToken(refresh_token);
   }
   return { access_token, user_id, kyc_status, intent };
 }
@@ -117,6 +141,15 @@ export async function uploadDocument(docType: string, file: File, userId?: strin
 export async function getDocumentStatus(docId: string) {
   const res = await apiClient.get(`/documents/${docId}/status`);
   return res.data;
+}
+
+export async function getUserDocumentsStatus(userId: string): Promise<Record<string, string>> {
+  try {
+    const res = await apiClient.get(`/documents/${userId}/status`);
+    return res.data as Record<string, string>;
+  } catch {
+    return {};
+  }
 }
 
 // ─── Applications ─────────────────────────────────────────────────────────────

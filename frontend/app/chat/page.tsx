@@ -1,15 +1,29 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, LayoutDashboard, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { useConversationStore } from '@/store/conversationStore';
-import { sendChatStream } from '@/lib/api';
+import { sendChatStream, uploadDocument } from '@/lib/api';
 import ChatLayout from '@/components/chat/ChatLayout';
 import ChatMessage from '@/components/chat/ChatMessage';
 import ChatInput from '@/components/chat/ChatInput';
 import TypingIndicator from '@/components/chat/TypingIndicator';
+
+const ATTACH_PREFIX = 'ATTACH_DOC:';
+
+/** Map MIME type / extension to a human-readable KYC doc type */
+function inferDocType(file: File): string {
+  const name = file.name.toLowerCase();
+  if (name.includes('aadhaar') || name.includes('aadhar')) return 'Aadhaar Card';
+  if (name.includes('pan')) return 'PAN Card';
+  if (name.includes('marksheet') || name.includes('mark') || name.includes('grade')) return 'Marksheet';
+  if (name.includes('passbook') || name.includes('bank')) return 'Bank Passbook';
+  if (name.includes('caste') || name.includes('certificate')) return 'Certificate';
+  if (file.type.startsWith('image/')) return 'Document Photo';
+  return 'Document';
+}
 
 export default function ChatPage() {
   const router = useRouter();
@@ -24,6 +38,7 @@ export default function ChatPage() {
     addMessage,
     appendContent,
     finalizeMessage,
+    updateMessage,
     setTitle,
     setTyping,
     deleteConversation,
@@ -31,6 +46,7 @@ export default function ChatPage() {
 
   const [input, setInput] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const aiMsgIdRef = useRef<string | null>(null);
 
@@ -107,6 +123,85 @@ export default function ChatPage() {
       }
     );
   };
+
+  /** Handle a file being picked from the attachment button */
+  const handleFileUpload = useCallback(async (file: File) => {
+    const convId = activeId ?? ensureConversation();
+    const docType = inferDocType(file);
+    const userId = user?.id ?? (typeof window !== 'undefined' ? sessionStorage.getItem('user_id') ?? undefined : undefined);
+
+    // Immediately show uploading card in chat
+    const uploadingPayload = JSON.stringify({
+      fileName: file.name,
+      fileSize: file.size,
+      docType,
+      mimeType: file.type,
+      status: 'uploading',
+    });
+    const uploadMsgId = addMessage(convId, { role: 'user', content: `${ATTACH_PREFIX}${uploadingPayload}` });
+
+    setIsUploading(true);
+    try {
+      const result = await uploadDocument(docType.toLowerCase().replace(/ /g, '_'), file, userId);
+
+      // Update the card to show success
+      const uploadedPayload = JSON.stringify({
+        fileName: file.name,
+        fileSize: file.size,
+        docType,
+        mimeType: file.type,
+        status: 'uploaded',
+        docId: result.doc_id,
+      });
+      updateMessage(convId, uploadMsgId, `${ATTACH_PREFIX}${uploadedPayload}`);
+
+      // Notify AI so it can acknowledge and continue onboarding
+      setTyping(true);
+      aiMsgIdRef.current = null;
+      const notifyText = `I have uploaded my ${docType} (file: ${file.name}).`;
+      sendChatStream(
+        notifyText,
+        convId,
+        (chunk) => {
+          if (!aiMsgIdRef.current) {
+            aiMsgIdRef.current = addMessage(convId, { role: 'assistant', content: chunk, isStreaming: true });
+          } else {
+            appendContent(convId, aiMsgIdRef.current, chunk);
+          }
+        },
+        () => {
+          if (aiMsgIdRef.current) finalizeMessage(convId, aiMsgIdRef.current);
+          setTyping(false);
+        },
+        () => {
+          const errText = `✅ ${docType} received. I'll process it shortly.`;
+          if (aiMsgIdRef.current) {
+            appendContent(convId, aiMsgIdRef.current, errText);
+            finalizeMessage(convId, aiMsgIdRef.current);
+          } else {
+            addMessage(convId, { role: 'assistant', content: errText });
+          }
+          setTyping(false);
+        }
+      );
+    } catch {
+      // Update card to show it still reached (or failed)
+      const errPayload = JSON.stringify({
+        fileName: file.name,
+        fileSize: file.size,
+        docType,
+        mimeType: file.type,
+        status: 'uploaded',
+      });
+      updateMessage(convId, uploadMsgId, `${ATTACH_PREFIX}${errPayload}`);
+      addMessage(convId, {
+        role: 'assistant',
+        content: `⚠️ There was an issue uploading **${file.name}**. Please try again or contact support.`,
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [activeId, ensureConversation, user?.id, addMessage, appendContent, finalizeMessage, updateMessage, setTyping]);
 
   if (!mounted || !isAuthenticated || !accessToken) {
     return (
@@ -186,7 +281,9 @@ export default function ChatPage() {
         value={input}
         onChange={setInput}
         onSend={handleSend}
+        onFileUpload={handleFileUpload}
         disabled={isTyping}
+        isUploading={isUploading}
         placeholder="Ask about loans, scholarships, KYC, or anything else…"
       />
     </ChatLayout>

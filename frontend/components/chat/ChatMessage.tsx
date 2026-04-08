@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { FileText, Image as ImageIcon, CheckCircle2, Loader2 } from 'lucide-react';
 import { Message } from '@/store/conversationStore';
 
 function renderInline(text: string): React.ReactNode[] {
@@ -82,19 +83,74 @@ function renderContent(content: string): React.ReactNode {
   return nodes;
 }
 
+interface AttachDocPayload {
+  fileName: string;
+  fileSize: number;
+  docType: string;
+  mimeType: string;
+  status: 'uploaded' | 'uploading';
+  docId?: string;
+}
+
+const ATTACH_PREFIX = 'ATTACH_DOC:';
+
+function parseAttachment(content: string): AttachDocPayload | null {
+  if (!content.startsWith(ATTACH_PREFIX)) return null;
+  try {
+    return JSON.parse(content.slice(ATTACH_PREFIX.length)) as AttachDocPayload;
+  } catch {
+    return null;
+  }
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AttachmentCard({ payload }: { payload: AttachDocPayload }) {
+  const isImage = payload.mimeType.startsWith('image/');
+  return (
+    <div className="flex items-center gap-3 bg-indigo-500/10 border border-indigo-500/25 rounded-2xl px-4 py-3 min-w-[220px] max-w-[300px]">
+      <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0 text-indigo-400">
+        {isImage ? <ImageIcon className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-white truncate">{payload.fileName}</p>
+        <p className="text-[10px] text-indigo-400/60 uppercase tracking-widest font-bold">
+          {payload.docType} · {formatFileSize(payload.fileSize)}
+        </p>
+      </div>
+      <div className="flex-shrink-0">
+        {payload.status === 'uploading' ? (
+          <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+        ) : (
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface ChatMessageProps {
   message: Message;
 }
 
 export default function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const attachment = parseAttachment(message.content);
 
   if (isUser) {
     return (
       <div className="flex justify-end px-4 py-2">
-        <div className="max-w-[75%] bg-indigo-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm leading-relaxed shadow-lg shadow-indigo-500/10">
-          {message.content}
-        </div>
+        {attachment ? (
+          <AttachmentCard payload={attachment} />
+        ) : (
+          <div className="max-w-[75%] bg-indigo-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm leading-relaxed shadow-lg shadow-indigo-500/10">
+            {message.content}
+          </div>
+        )}
       </div>
     );
   }

@@ -155,6 +155,17 @@ export default function OnboardingPage() {
     nextStep();
   };
 
+  const handleFileUploadMessage = (message: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 11),
+        sender: 'user' as const,
+        content: message,
+      },
+    ]);
+  };
+
   const handleFinalSubmission = async () => {
     setIsSubmitting(true);
     
@@ -230,10 +241,11 @@ export default function OnboardingPage() {
 
       {/* Input Bar */}
       <footer className="shrink-0 z-30 pb-safe">
-        <ChatInputBar 
+        <ChatInputBar
             inputType={currentQuestion?.inputType || 'text'}
             onReply={handleUserReply}
             isProcessing={isTyping || isSubmitting}
+            onFileUpload={handleFileUploadMessage}
         />
       </footer>
 

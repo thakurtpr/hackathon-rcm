@@ -89,6 +89,8 @@ SMTP_USER=<gmail address>
 SMTP_PASS=<google app password — no spaces>
 ```
 
+smtp confiugred
+
 **Note:** Google App Passwords are displayed with spaces (`xxxx xxxx xxxx xxxx`) but must be stored without spaces in `.env`.
 
 ---
@@ -145,6 +147,7 @@ The InsightFace `buffalo_l` model (~400MB) was downloaded at container startup. 
 
 A named Docker volume (`insightface_models`) is mounted at `/root/.insightface`. On first run, Docker seeds the volume from the image. On subsequent restarts the model loads from the volume in ~5 seconds with no re-download.
 
+check out htis once made claude do this
 ---
 
 ## 8. Remaining TODOs
@@ -155,3 +158,36 @@ A named Docker volume (`insightface_models`) is mounted at `/root/.insightface`.
 | `GROQ_API_KEY` not set | High | Add `GROQ_API_KEY=gsk_...` to `.env` from console.groq.com, restart ai-service |
 | Cloudflare URL is ephemeral | Medium | Set up named tunnel with CF account for stable URL |
 | InsightFace bypass still active until model confirms loaded | Low | Verify `InsightFace loaded ✓` in logs after rebuild; bypass auto-deactivates once model is ready |
+
+
+aut bencho kuch kuch hua hai bhool gaya
+grok ka api key hai kal bheja tha apko mere mattermost pe padda hua hai but direct access nahi hai phone 
+
+
+
+---
+
+## SESSION AND UPLOAD FIXES
+
+**Timestamp:** 2026-04-08
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `frontend/store/authStore.ts` | Added `refreshToken` field and `setRefreshToken` action. Updated `login` to accept optional 5th `refreshToken` param (preserves existing value when not provided). Added `partialize` to persist only `accessToken`, `refreshToken`, `user`, `userId`, `intent`, `isAuthenticated` — excludes ephemeral fields like `kycStatus`. |
+| `frontend/components/ProtectedRoute.tsx` | Rewrote auth check. Root cause of reload-redirect bug: zustand v5 `persist` rehydration is async (microtask), so `isAuthenticated` is `false` at first render even when sessionStorage has a token. Fix: directly read `sessionStorage.getItem('auth-storage')` on mount (synchronous) before zustand hydrates. Falls back to silent token refresh via `POST /auth/refresh` if no access token found. Adds live-logout detection via `isAuthenticated` dep. |
+| `frontend/lib/api.ts` | `loginUser` and `verifyOTP` now call `useAuthStore.getState().setRefreshToken(refresh_token)` in addition to sessionStorage. 401 interceptor now reads `refreshToken` from the zustand store (with sessionStorage fallback). Added `getUserDocumentsStatus(userId)` → `GET /documents/{userId}/status` for KYC polling. |
+| `frontend/app/login/page.tsx` | Added `useEffect` on mount: if `auth-storage` sessionStorage key contains a valid `accessToken`, redirect to `/dashboard` immediately — prevents landing on login when already authenticated. |
+| `frontend/app/onboarding/kyc/page.tsx` | Fixed `uploadDocument` call to pass `userId` from `useAuthStore` (was passing `undefined`). Added `handleRetry` that resets document status to `'pending'` for non-selfie cards. Changed progress display to show `X of 4 required documents verified`. Added green banner when all required docs verified. Added polling via `setInterval` (4 s) calling `getUserDocumentsStatus`; stops automatically when all required docs verified. |
+| `frontend/components/kyc/DocumentCard.tsx` | Added `onRetry?: () => void` prop. Added 10 MB client-side size validation in `onDrop` with local `localError` state displayed below the dropzone. Fixed retry button: non-selfie cards call `onRetry()` instead of the no-op `onOpenCamera`. Selfie retry still opens the camera. Added `useEffect` to clear `localError` on status change. |
+| `frontend/components/ChatWidget.tsx` | Added Paperclip and Camera icon buttons to the left of Send. Hidden `<input type="file">` accepts JPG/PNG/PDF up to 10 MB. File preview bar shows above the input (image thumbnail or PDF icon + filename + size + X remove). Webcam modal (reuses `WebcamCapture`) auto-sets doc_type to `selfie`. On send with attachment: uploads file via `uploadDocument`, then sends `"I have uploaded {filename}"` as a chat message. |
+| `frontend/components/onboarding/ChatInputBar.tsx` | Added `onFileUpload?: (message: string) => void` prop. For `text`/`autocomplete`/`pan`/`aadhaar` input types: added Camera and Paperclip buttons to the right of the text field. File preview bar above input. On send with attachment: uploads file via `uploadDocument`, calls `onFileUpload("I have uploaded {filename}")` without advancing the onboarding step. Webcam modal uses `WebcamCapture`, auto-sets doc_type to `selfie`. |
+| `frontend/app/onboarding/page.tsx` | Added `handleFileUploadMessage` helper that adds a user message bubble without advancing the wizard step. Passed as `onFileUpload` prop to `ChatInputBar`. |
+
+### Known Remaining Issues
+
+- `GET /documents/{user_id}/status` endpoint must exist on the backend for KYC polling to work. If it returns a 404 the poll silently no-ops (does not break the page).
+- The 401 interceptor silent-refresh still falls back to `sessionStorage.getItem('refresh_token')` for sessions created before this update (where `refreshToken` wasn't in the zustand store). This is handled gracefully.
+- `ChatWidget` is defined but not imported into any layout/page yet — add `<ChatWidget />` to the root layout or dashboard layout to activate it.
+- TypeScript check (`npx tsc --noEmit`) passes with zero errors.

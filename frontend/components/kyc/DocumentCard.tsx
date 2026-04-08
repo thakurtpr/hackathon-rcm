@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import {
   UploadCloud,
@@ -27,7 +27,10 @@ interface DocumentCardProps {
   error: string | null
   onFileSelect: (file: File) => void
   onOpenCamera: () => void
+  onRetry?: () => void
 }
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
   docType,
@@ -37,11 +40,25 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   error,
   onFileSelect,
   onOpenCamera,
+  onRetry,
 }) => {
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  // Clear local validation error when status changes
+  useEffect(() => {
+    setLocalError(null)
+  }, [status])
+
   const onDrop = useCallback(
     (files: File[]) => {
       if (files.length > 0) {
-        onFileSelect(files[0])
+        const file = files[0]
+        if (file.size > MAX_FILE_SIZE) {
+          setLocalError("File too large. Maximum 10 MB.")
+          return
+        }
+        setLocalError(null)
+        onFileSelect(file)
       }
     },
     [onFileSelect]
@@ -55,6 +72,15 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   })
 
   const isSelfie = docType.toLowerCase().includes("selfie")
+
+  const handleRetryClick = () => {
+    setLocalError(null)
+    if (isSelfie) {
+      onOpenCamera()
+    } else if (onRetry) {
+      onRetry()
+    }
+  }
 
   return (
     <Card className="w-full bg-zinc-900 border-zinc-800 text-zinc-100 overflow-hidden transition-all duration-300 hover:border-zinc-700 shadow-xl">
@@ -82,36 +108,68 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             <p className="text-sm text-zinc-400 text-center">
               Please take a clear photo of your face for verification.
             </p>
-            <Button
-              onClick={onOpenCamera}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white border-none"
-            >
-              <Camera className="mr-2 h-4 w-4" />
-              Open Camera
-            </Button>
+            {status !== "verified" && status !== "uploaded" && (
+              <Button
+                onClick={onOpenCamera}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white border-none"
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                Open Camera
+              </Button>
+            )}
+            {(status === "verified" || status === "uploaded") && (
+              <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                <CheckCircle className="h-4 w-4" />
+                Verified
+              </div>
+            )}
+            {status === "uploading" && (
+              <div className="flex items-center gap-2 text-indigo-400 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading...
+              </div>
+            )}
+            {status === "failed" && (
+              <div className="space-y-2 w-full">
+                <p className="text-xs text-rose-400 text-center">{error || "Capture failed."}</p>
+                <Button
+                  variant="outline"
+                  onClick={handleRetryClick}
+                  className="w-full border-zinc-800 hover:bg-zinc-800 text-zinc-300"
+                >
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  Retry
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
             {status === "pending" && (
-              <div
-                {...getRootProps()}
-                className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors duration-200 ${
-                  isDragActive
-                    ? "border-indigo-500 bg-indigo-500/5"
-                    : "border-zinc-800 hover:border-zinc-700 bg-zinc-950/50"
-                }`}
-              >
-                <input {...getInputProps()} />
-                <div className="p-3 bg-zinc-800 rounded-full mb-3">
-                  <UploadCloud className="h-6 w-6 text-zinc-400" />
+              <>
+                <div
+                  {...getRootProps()}
+                  className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors duration-200 ${
+                    isDragActive
+                      ? "border-indigo-500 bg-indigo-500/5"
+                      : "border-zinc-800 hover:border-zinc-700 bg-zinc-950/50"
+                  }`}
+                >
+                  <input {...getInputProps()} />
+                  <div className="p-3 bg-zinc-800 rounded-full mb-3">
+                    <UploadCloud className="h-6 w-6 text-zinc-400" />
+                  </div>
+                  <p className="text-sm font-medium">
+                    {isDragActive ? "Drop the file here" : "Drag & drop or click to upload"}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Supported: {Object.values(acceptedFiles).flat().join(", ") || "JPG, PNG, PDF"} · Max 10 MB
+                  </p>
                 </div>
-                <p className="text-sm font-medium">
-                  {isDragActive ? "Drop the file here" : "Drag & drop or click to upload"}
-                </p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Supported: {Object.values(acceptedFiles).flat().join(", ") || "JPG, PNG, PDF"}
-                </p>
-              </div>
+                {localError && (
+                  <p className="text-xs text-rose-400">{localError}</p>
+                )}
+              </>
             )}
 
             {status === "uploading" && (
@@ -127,9 +185,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                   <CheckCircle className="h-5 w-5 text-emerald-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-emerald-400 truncate">
-                    Verified Successfully
-                  </p>
+                  <p className="text-sm font-medium text-emerald-400 truncate">Verified Successfully</p>
                   <p className="text-xs text-zinc-500 truncate">{fileName}</p>
                 </div>
               </div>
@@ -142,19 +198,17 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
                     <XCircle className="h-5 w-5 text-rose-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-rose-400">
-                      Verification Failed
-                    </p>
+                    <p className="text-sm font-medium text-rose-400">Upload Failed</p>
                     <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{error}</p>
                   </div>
                 </div>
                 <Button
                   variant="outline"
-                  onClick={onOpenCamera} // Re-opening camera/picker usually triggers retry logic in parent
+                  onClick={handleRetryClick}
                   className="w-full border-zinc-800 hover:bg-zinc-800 text-zinc-300"
                 >
                   <RefreshCcw className="mr-2 h-4 w-4" />
-                  Retry
+                  Try Again
                 </Button>
               </div>
             )}
