@@ -97,6 +97,16 @@ async def handle_doc_uploaded(event: dict) -> None:
                 "doc_type": "face_match",
             },
         )
+        # Store face match result in Redis so conversation agent can display it
+        await redis_service.set_json(
+            f"face_match:{user_id}",
+            {
+                "flag": face_result.flag,
+                "score": face_result.face_match_score,
+                "external_result": external_result,
+            },
+            ttl=86400,
+        )
         logger.info(
             "[FaceMatch] user=%s flag=%s external=%s score=%.4f",
             user_id, face_result.flag, external_result, face_result.face_match_score,

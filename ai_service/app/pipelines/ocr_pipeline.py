@@ -1,16 +1,10 @@
 import logging
-import platform
 from io import BytesIO
 from statistics import mean
 from typing import Callable
 
 import numpy as np
 from PIL import Image
-
-# Apple Silicon (M1/M2/M3): force PaddleOCR to CPU mode to avoid MPS crashes
-if platform.machine() == "arm64":
-    import os
-    os.environ["PADDLE_ON_CPU"] = "1"
 
 logger = logging.getLogger(__name__)
 
@@ -24,24 +18,16 @@ FIELDS_BY_DOC_TYPE = {
     "selfie": [],
 }
 
-# Module-level OCR instance (loaded once at import time, lazy)
-# On M1/M2/M3 Apple Silicon: PaddleOCR may fail — falls back to pytesseract
+# Module-level OCR instance (pytesseract — PaddleOCR removed due to SIGSEGV in Docker)
 _ocr_instance = None
-_use_pytesseract = False
+_use_pytesseract = True
 
 
 def _get_ocr():
-    global _ocr_instance, _use_pytesseract
+    global _ocr_instance
     if _ocr_instance is None:
-        try:
-            from paddleocr import PaddleOCR  # type: ignore
-            _ocr_instance = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        except ImportError:
-            # If PaddleOCR fails on M1, fallback to pytesseract
-            logger.warning("PaddleOCR not available — falling back to pytesseract")
-            import pytesseract  # type: ignore
-            _ocr_instance = pytesseract
-            _use_pytesseract = True
+        import pytesseract  # type: ignore
+        _ocr_instance = pytesseract
     return _ocr_instance
 
 

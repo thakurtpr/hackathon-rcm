@@ -91,19 +91,29 @@ func GetEligibilityHandler(c *gin.Context) {
 		"band":      "pending",
 	}
 	if DB != nil {
-		var composite float64
+		var composite, academic, financial, pq, docTrust, kyc float64
 		var band, riskBand string
 		var pqOverride, fraudFlag bool
-		err := DB.QueryRow(`SELECT composite, band, COALESCE(risk_band,'MEDIUM'), pq_override, fraud_flag FROM eligibility_scores WHERE app_id=$1`, appID).
-			Scan(&composite, &band, &riskBand, &pqOverride, &fraudFlag)
+		err := DB.QueryRow(`
+			SELECT composite, band, COALESCE(risk_band,'MEDIUM'), pq_override, fraud_flag,
+			       COALESCE(academic,0), COALESCE(financial,0), COALESCE(pq,0),
+			       COALESCE(doc_trust,0), COALESCE(kyc_completeness,0)
+			FROM eligibility_scores WHERE app_id=$1`, appID).
+			Scan(&composite, &band, &riskBand, &pqOverride, &fraudFlag,
+				&academic, &financial, &pq, &docTrust, &kyc)
 		if err == nil {
 			result = gin.H{
-				"app_id":          appID,
-				"composite":       composite,
-				"band":            band,
-				"risk_band":       riskBand,
-				"pq_override":     pqOverride,
-				"fraud_flag":      fraudFlag,
+				"app_id":           appID,
+				"composite":        composite,
+				"band":             band,
+				"risk_band":        riskBand,
+				"pq_override":      pqOverride,
+				"fraud_flag":       fraudFlag,
+				"academic":         academic,
+				"financial":        financial,
+				"pq":               pq,
+				"doc_trust":        docTrust,
+				"kyc_completeness": kyc,
 				"improvement_hints": []string{},
 			}
 		}

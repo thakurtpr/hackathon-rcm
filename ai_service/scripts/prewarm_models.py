@@ -1,8 +1,5 @@
 import logging
-import os
 import numpy as np
-from sentence_transformers import SentenceTransformer
-from paddleocr import PaddleOCR
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -11,32 +8,27 @@ def prewarm():
     # 1. Pre-warm SentenceTransformer
     logger.info("Pre-warming SentenceTransformer (all-MiniLM-L6-v2)...")
     try:
+        from sentence_transformers import SentenceTransformer
         SentenceTransformer("all-MiniLM-L6-v2")
         logger.info("SentenceTransformer model downloaded ✓")
     except Exception as e:
         logger.warning(f"Failed to pre-warm SentenceTransformer: {e}")
 
-    # 2. Pre-warm PaddleOCR
-    logger.info("Pre-warming PaddleOCR...")
+    # 2. Pre-warm DeepFace SFace model (~37MB)
+    logger.info("Pre-warming DeepFace SFace...")
     try:
-        # This will trigger download of detection, recognition and classification models
-        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        # Run a dummy inference to ensure everything is downloaded
-        dummy_img = np.zeros((100, 300, 3), dtype=np.uint8)
-        ocr.ocr(dummy_img, cls=True)
-        logger.info("PaddleOCR models downloaded ✓")
+        from deepface import DeepFace
+        # Create two dummy images to trigger model download
+        dummy1 = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
+        dummy2 = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
+        DeepFace.verify(
+            img1_path=dummy1, img2_path=dummy2,
+            model_name="SFace", detector_backend="opencv",
+            enforce_detection=False,
+        )
+        logger.info("DeepFace SFace model downloaded ✓")
     except Exception as e:
-        logger.warning(f"Failed to pre-warm PaddleOCR: {e}")
-
-    # 3. Pre-warm InsightFace
-    logger.info("Pre-warming InsightFace (buffalo_l)...")
-    try:
-        from insightface.app import FaceAnalysis
-        app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-        app.prepare(ctx_id=0, det_size=(640, 640))
-        logger.info("InsightFace models downloaded ✓")
-    except Exception as e:
-        logger.warning(f"Failed to pre-warm InsightFace: {e}")
+        logger.warning(f"Failed to pre-warm DeepFace: {e}")
 
 if __name__ == "__main__":
     prewarm()

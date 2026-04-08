@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     face_match_manual_review_threshold: float = 0.70
     demo_app_id: str = "demo-rajan-001"
     demo_user_id: str = "demo-user-rajan"
+    internal_api_key: str = "hackforge-internal-service-key"
 
     def _is_groq_key_valid(self) -> bool:
         key = self.groq_api_key

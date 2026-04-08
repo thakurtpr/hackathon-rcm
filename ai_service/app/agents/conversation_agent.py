@@ -770,9 +770,51 @@ async def handle_kyc_guidance(
     if any(sig in msg_lower for sig in done_signals):
         conv_data["kyc_done"] = True
         name = conv_data.get("profile_fields", {}).get("full_name", "")
+        user_id = conv_data.get("user_id", "")
+
+        # ── Fetch OCR results from Redis ──────────────────────────────────────
+        ocr_summary_lines = []
+        for doc_type in ("aadhaar", "pan", "marksheet", "income_cert", "bank_passbook"):
+            try:
+                ocr_data = await _redis.get_json(f"ocr:result:{user_id}:{doc_type}")
+                if ocr_data and ocr_data.get("fields"):
+                    fields = ocr_data["fields"]
+                    trust = ocr_data.get("doc_trust_score", 0)
+                    authentic = ocr_data.get("doc_authentic", False)
+                    status_icon = "✅" if authentic else "⚠️"
+                    doc_label = doc_type.replace("_", " ").title()
+                    ocr_summary_lines.append(f"\n**{status_icon} {doc_label}** (trust: {round(trust * 100)}%)")
+                    for k, v in fields.items():
+                        if v is not None:
+                            ocr_summary_lines.append(f"  • {k.replace('_', ' ').title()}: {v}")
+            except Exception:
+                pass
+
+        # ── Check face match status ───────────────────────────────────────────
+        face_status = ""
+        try:
+            face_data = await _redis.get_json(f"face_match:{user_id}")
+            if face_data:
+                flag = face_data.get("flag", "")
+                score = face_data.get("score", 0)
+                if flag == "passed":
+                    face_status = f"\n\n**✅ Face verification passed** (similarity: {round(score * 100)}%)"
+                elif flag == "manual_review":
+                    face_status = f"\n\n**⚠️ Face verification needs manual review** (similarity: {round(score * 100)}%)"
+                elif flag == "failed":
+                    face_status = "\n\n**❌ Face verification failed** — please re-upload a clear selfie."
+        except Exception:
+            pass
+
+        ocr_block = "\n".join(ocr_summary_lines) if ocr_summary_lines else ""
+        if ocr_block:
+            ocr_block = "\n\n**Here's what we extracted from your documents:**" + ocr_block
+
         if lang == "en":
             reply = (
-                f"Great, {name}! Your documents are being verified. 📋\n\n"
+                f"Great, {name}! Your documents have been received. 📋"
+                f"{ocr_block}"
+                f"{face_status}\n\n"
                 "Now, I want to understand you better as a person — because **your potential "
                 "matters to us just as much as your marks**. 🌟\n\n"
                 "I'll ask you **8 questions**. Take your time and answer honestly — "
@@ -781,13 +823,17 @@ async def handle_kyc_guidance(
             )
         elif lang == "hi":
             reply = (
-                "बढ़िया! आपके दस्तावेज़ जाँचे जा रहे हैं। 📋\n\n"
+                f"बढ़िया! आपके दस्तावेज़ मिल गए। 📋"
+                f"{ocr_block}"
+                f"{face_status}\n\n"
                 "अब मैं आपसे 8 सवाल पूछूँगी — ईमानदारी से जवाब दें।\n\n"
                 "क्या आप तैयार हैं? (**हाँ** टाइप करें)"
             )
         else:
             reply = (
-                "ଭଲ! ଆପଣଙ୍କ ଡକ୍ୟୁମେଣ୍ଟ ଯାଞ୍ଚ ହେଉଛି। 📋\n\n"
+                f"ଭଲ! ଆପଣଙ୍କ ଡକ୍ୟୁମେଣ୍ଟ ମିଳିଲା। 📋"
+                f"{ocr_block}"
+                f"{face_status}\n\n"
                 "ଏବେ ମୁଁ ଆପଣଙ୍କୁ ୮ ଟି ପ୍ରଶ୍ନ ପଚାରିବି।\n\n"
                 "ପ୍ରସ୍ତୁତ? (**ହଁ** ଟାଇପ୍ କରନ୍ତୁ)"
             )

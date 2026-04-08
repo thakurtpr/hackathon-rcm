@@ -2,7 +2,6 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-import numpy as np
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -77,30 +76,10 @@ async def lifespan(app: FastAPI):
     logger.info("=== AI Service starting up ===")
     settings = get_settings()
 
-    # 1. Load InsightFace
-    logger.info("Loading InsightFace buffalo_l...")
-    logger.info("InsightFace buffalo_l model downloading approximately 400MB — this only happens once")
-    try:
-        from insightface.app import FaceAnalysis  # type: ignore
-        face_app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-        try:
-            face_app.prepare(ctx_id=0, det_size=(640, 640))
-        except Exception as prepare_exc:
-            logger.warning("face_app.prepare failed — face match will be unavailable: %s", prepare_exc)
-            app.state.insightface = None
-            app.state.face_app = None
-            face_app = None
-
-        if face_app is not None:
-            app.state.insightface = face_app
-            app.state.face_app = face_app
-            from app.kafka import handlers
-            handlers.insightface_app = face_app
-            logger.info("InsightFace loaded ✓")
-    except Exception as exc:
-        logger.warning("InsightFace failed to load — face match will be unavailable: %s", exc)
-        app.state.insightface = None
-        app.state.face_app = None
+    # 1. Face matching uses DeepFace (no pre-init needed)
+    logger.info("Face matching: DeepFace SFace backend (lazy-loaded on first use)")
+    app.state.insightface = None
+    app.state.face_app = None
 
     # 2. Load SentenceTransformer
     logger.info("Loading sentence-transformers all-MiniLM-L6-v2...")
@@ -116,18 +95,9 @@ async def lifespan(app: FastAPI):
         logger.warning("SentenceTransformer failed to load (non-fatal): %s", exc)
         app.state.embedder = None
 
-    # 3. Pre-warm PaddleOCR
-    logger.info("Pre-warming PaddleOCR...")
-    try:
-        from paddleocr import PaddleOCR  # type: ignore
-        dummy_img = np.zeros((100, 300, 3), dtype=np.uint8)
-        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        await asyncio.to_thread(ocr.ocr, dummy_img, cls=True)
-        app.state.ocr = ocr
-        logger.info("PaddleOCR ready ✓")
-    except Exception as exc:
-        logger.warning("PaddleOCR failed to load (non-fatal): %s", exc)
-        app.state.ocr = None
+    # 3. OCR uses pytesseract (PaddleOCR removed — caused SIGSEGV in Docker)
+    logger.info("OCR engine: pytesseract (ready)")
+    app.state.ocr = None
 
     # 4. Initialize Qdrant collections
     logger.info("Initializing Qdrant collections...")

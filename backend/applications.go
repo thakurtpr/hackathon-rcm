@@ -124,12 +124,21 @@ func GetApplicationStatusHandler(c *gin.Context) {
 	appID := c.Param("app_id")
 	status := "submitted"
 	var pipelineJSON []byte
+	var loanAmount float64
+	var userID string
 	if DB != nil {
-		DB.QueryRow(`SELECT status, pipeline_stages FROM applications WHERE id=$1`, appID).Scan(&status, &pipelineJSON)
+		DB.QueryRow(`SELECT status, pipeline_stages, COALESCE(loan_amount,0), COALESCE(user_id::text,'') FROM applications WHERE id=$1`, appID).
+			Scan(&status, &pipelineJSON, &loanAmount, &userID)
 	}
 	var pipeline map[string]interface{}
 	json.Unmarshal(pipelineJSON, &pipeline)
-	c.JSON(http.StatusOK, gin.H{"app_id": appID, "status": status, "pipeline_stages": pipeline})
+	c.JSON(http.StatusOK, gin.H{
+		"app_id":          appID,
+		"user_id":         userID,
+		"status":          status,
+		"pipeline_stages": pipeline,
+		"loan_amount":     loanAmount,
+	})
 }
 
 func UpdateApplicationStateHandler(c *gin.Context) {

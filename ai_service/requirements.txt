@@ -5,11 +5,10 @@ langchain-core
 langchain-groq
 langgraph
 groq==0.9.0
-paddlepaddle==2.6.2
-paddleocr==2.7.3
 pytesseract==0.3.10
 pdf2image==1.17.0
 deepface==0.0.93
+tf-keras
 opencv-python-headless==4.10.0.84
 sentence-transformers==3.0.0
 qdrant-client==1.9.0

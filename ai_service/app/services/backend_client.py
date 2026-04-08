@@ -21,20 +21,23 @@ def get_http_client() -> httpx.AsyncClient:
     global _http_client
     if _http_client is None or _http_client.is_closed:
         settings = get_settings()
+        internal_key = getattr(settings, "internal_api_key", "") or "hackforge-internal-service-key"
         _http_client = httpx.AsyncClient(
             base_url=settings.backend_base_url,
             timeout=30.0,
+            headers={"X-Internal-Key": internal_key},
         )
     return _http_client
 
 
 async def get_profile(user_id: str) -> Optional[dict]:
     try:
-        resp = await get_http_client().get(f"/users/{user_id}/profile")
+        # Use /internal/ prefix — protected by X-Internal-Key, not user JWT
+        resp = await get_http_client().get(f"/internal/users/{user_id}/profile")
         resp.raise_for_status()
         return resp.json()
     except httpx.ConnectError:
-        logger.warning("Person B not reachable — operating in standalone mode")
+        logger.warning("Backend not reachable — operating in standalone mode")
         return None
     except Exception as exc:
         logger.error("get_profile(%s) failed: %s", user_id, exc)

@@ -109,7 +109,7 @@ services:
       - "8001:8001"
     env_file: .env
     environment:
-      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_API_KEY: "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"
       GROQ_MODEL: "llama-3.3-70b-versatile"
       KAFKA_BROKERS: kafka:29092
       QDRANT_URL: http://qdrant:6333
@@ -118,11 +118,7 @@ services:
       BACKEND_BASE_URL: http://backend:8000
       AI_SERVICE_PORT: 8001
       AI_SERVICE_BASE_URL: http://ai-service:8001
-    volumes:
-      # Persist the InsightFace buffalo_l model (~400MB) across restarts.
-      # First boot downloads it once; subsequent starts load from this volume instantly.
-      # Without this, the model re-downloads (or fails) on every container restart.
-      - insightface_models:/root/.insightface
+      TRANSFORMERS_NO_TF: "1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -224,4 +220,3 @@ volumes:
   redis_data:
   minio_data:
   qdrant_data:
-  insightface_models:

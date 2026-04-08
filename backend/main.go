@@ -50,6 +50,23 @@ func JWTMiddleware() gin.HandlerFunc {
 	}
 }
 
+// InternalKeyMiddleware allows service-to-service calls from the AI service.
+// The AI service sends X-Internal-Key: <shared-secret> instead of a user JWT.
+var internalKey = getEnv("INTERNAL_API_KEY", "hackforge-internal-service-key")
+
+func InternalKeyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key := c.GetHeader("X-Internal-Key")
+		if key != internalKey {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid internal key"})
+			return
+		}
+		// Inject a synthetic user_id so downstream handlers that call c.GetString("user_id") don't panic
+		c.Set("user_id", "internal-service")
+		c.Next()
+	}
+}
+
 func main() {
 	InitDB()
 	InitRedis()
@@ -118,12 +135,8 @@ func main() {
 		elig.POST("/compute", ComputeEligibilityHandler)
 		elig.GET("/:app_id", GetEligibilityHandler)
 
-		ai := p.Group("/ai")
-		ai.POST("/kyc-result", KYCResultHandler)
-		ai.POST("/behavioral-result", BehavioralResultHandler)
-		ai.POST("/fraud-result", FraudResultHandler)
-		ai.POST("/scholarship-result", ScholarshipResultHandler)
-		ai.POST("/explanation-result", ExplanationResultHandler)
+		// NOTE: /ai/* callback routes are handled by InternalKeyMiddleware group below —
+		// do NOT register them here under JWT or you get a duplicate route panic.
 
 		sch := p.Group("/scholarships")
 		sch.GET("/list", ListScholarshipsHandler)
@@ -148,6 +161,24 @@ func main() {
 
 	// WebSocket endpoint (auth via query param token)
 	r.GET("/applications/:app_id/live", WebSocketHandler)
+
+	// Internal service-to-service routes (X-Internal-Key auth, not JWT)
+	// The AI service calls these to post pipeline results back and to fetch profiles.
+	internal := r.Group("/", InternalKeyMiddleware())
+	{
+		// AI pipeline result callbacks
+		iAI := internal.Group("/ai")
+		iAI.POST("/kyc-result", KYCResultHandler)
+		iAI.POST("/behavioral-result", BehavioralResultHandler)
+		iAI.POST("/fraud-result", FraudResultHandler)
+		iAI.POST("/scholarship-result", ScholarshipResultHandler)
+		iAI.POST("/explanation-result", ExplanationResultHandler)
+
+		// Profile + application read for AI scoring context
+		iInternal := internal.Group("/internal")
+		iInternal.GET("/users/:user_id/profile", GetProfileHandler)
+		iInternal.GET("/applications/:app_id/status", GetApplicationStatusHandler)
+	}
 
 	port := getEnv("BACKEND_PORT", "8000")
 	log.Printf("Backend service starting on :%s", port)
