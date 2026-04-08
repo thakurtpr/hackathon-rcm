@@ -37,30 +37,27 @@ echo -e "${BLUE}Creating kind cluster...${NC}"
 kind create cluster --name hackforge --config infra/k8s/kind-config.yaml --wait 60s
 echo -e "${GREEN}Kind cluster created${NC}"
 
-# 5. Load Docker images into kind (reuse images from docker compose)
+# 5. Load Docker images into kind (skip ai-service — 14.5GB, uses ExternalName to host)
 echo -e "${BLUE}Loading Docker images into kind...${NC}"
-IMAGES=("hackathon-rcm-backend" "hackathon-rcm-ai-service" "hackathon-rcm-frontend")
+IMAGES=("hackathon-rcm-backend" "hackathon-rcm-frontend")
 for img in "${IMAGES[@]}"; do
     if docker image inspect "$img:latest" &>/dev/null; then
         echo "  Loading $img..."
         kind load docker-image "$img:latest" --name hackforge
     else
         echo -e "${RED}  Image $img:latest not found — building...${NC}"
-        # Build from docker compose if image missing
         case $img in
             hackathon-rcm-backend)  docker compose build backend && kind load docker-image "$img:latest" --name hackforge ;;
-            hackathon-rcm-ai-service) docker compose build ai-service && kind load docker-image "$img:latest" --name hackforge ;;
             hackathon-rcm-frontend) docker compose build frontend && kind load docker-image "$img:latest" --name hackforge ;;
         esac
     fi
 done
 
-# Also load infra images that kind doesn't have by default
+# Load infra images (already pulled by docker compose)
 echo -e "${BLUE}Loading infrastructure images...${NC}"
 INFRA_IMAGES=("postgres:16-alpine" "redis:7-alpine" "minio/minio" "confluentinc/cp-zookeeper:7.6.0" "confluentinc/cp-kafka:7.6.0" "qdrant/qdrant:latest" "nginx:alpine")
 for img in "${INFRA_IMAGES[@]}"; do
     echo "  Loading $img..."
-    docker pull "$img" 2>/dev/null || true
     kind load docker-image "$img" --name hackforge 2>/dev/null || echo "  Warning: could not load $img"
 done
 
@@ -88,9 +85,9 @@ echo ""
 echo -e "${GREEN}=== Access Points ===${NC}"
 echo "  Nginx (main):    http://localhost:30080"
 echo "  Backend API:     http://localhost:30000"
-echo "  AI Service:      http://localhost:30001"
 echo "  Frontend direct: http://localhost:30002"
 echo "  MinIO Console:   http://localhost:30003"
+echo "  AI Service:      via Docker Compose at host:8001 (ExternalName)"
 echo ""
 echo -e "${BLUE}To connect cloudflared tunnel:${NC}"
 echo "  cloudflared tunnel --no-autoupdate --url http://localhost:30080"
