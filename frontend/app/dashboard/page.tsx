@@ -222,24 +222,17 @@ export default function DashboardPage() {
   const [aiPulse, setAiPulse] = useState(0);
   const [appId, setAppId] = useState<string | null>(storedAppId);
 
-  // Resolve appId: store → sessionStorage → fetch from user
+  // Resolve appId: store → sessionStorage → fetch from API (with stale ID recovery)
   useEffect(() => {
-    if (storedAppId) {
-      setAppId(storedAppId);
-      return;
-    }
-    const ssAppId = typeof window !== 'undefined' ? sessionStorage.getItem('app_id') : null;
-    if (ssAppId) {
-      setApplicationId(ssAppId);
-      setAppId(ssAppId);
-      return;
-    }
     const resolvedUserId =
       authUserId ||
       (typeof window !== 'undefined' ? sessionStorage.getItem('user_id') : null);
-    if (resolvedUserId) {
+
+    const fetchFromApi = () => {
+      if (!resolvedUserId) return;
       listUserApplications(resolvedUserId)
-        .then((apps: { app_id?: string }[]) => {
+        .then((resp: { applications?: { app_id?: string }[] } | { app_id?: string }[]) => {
+          const apps = Array.isArray(resp) ? resp : (resp as { applications?: { app_id?: string }[] }).applications || [];
           if (apps?.length) {
             const id = apps[0].app_id;
             if (id) {
@@ -250,7 +243,32 @@ export default function DashboardPage() {
           }
         })
         .catch(() => {});
+    };
+
+    // Try stored app IDs first, but validate they exist
+    const candidateId = storedAppId || (typeof window !== 'undefined' ? sessionStorage.getItem('app_id') : null);
+    if (candidateId) {
+      // Validate the candidate ID by fetching it
+      getApplicationStatus(candidateId)
+        .then((result) => {
+          if (result && result.status !== 'unknown') {
+            setApplicationId(candidateId);
+            setAppId(candidateId);
+          } else {
+            // Stale ID — clear and fetch from API
+            if (typeof window !== 'undefined') sessionStorage.removeItem('app_id');
+            fetchFromApi();
+          }
+        })
+        .catch(() => {
+          // ID not found — clear and fetch from API
+          if (typeof window !== 'undefined') sessionStorage.removeItem('app_id');
+          fetchFromApi();
+        });
+      return;
     }
+
+    fetchFromApi();
   }, [storedAppId, authUserId, setApplicationId]);
 
   useEffect(() => {

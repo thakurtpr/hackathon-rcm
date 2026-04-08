@@ -291,10 +291,11 @@ async def generate_questions(
             questions = []
 
     if not _validate_questions(questions):
-        raise RuntimeError(
-            "AI question generation failed after 2 attempts. "
-            "Check GROQ_API_KEY and Groq service availability."
+        logger.warning(
+            "AI question generation failed after 2 attempts for app_id=%s — using fallback questions",
+            app_id,
         )
+        questions = _fallback_questions()
 
     await redis_service.set_json(f"questions:{app_id}", questions, ttl=3600)
     logger.info("Generated and cached fresh questions for app_id=%s", app_id)
