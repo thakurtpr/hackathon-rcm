@@ -1,0 +1,561 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hackforge
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hackforge-secrets
+  namespace: hackforge
+type: Opaque
+stringData:
+  GROQ_API_KEY: "grok-api-key"
+  DB_PASSWORD: "postgres"
+  MINIO_SECRET_KEY: "minioadmin"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: hackforge
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: hackforge
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: hackforge
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-pvc
+  namespace: hackforge
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "hackforge"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: hackforge-secrets, key: DB_PASSWORD}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            limits: {memory: 512Mi, cpu: 500m}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: hackforge
+spec:
+  selector:
+    app: postgres
+  ports:
+    - {port: 5432, targetPort: 5432}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - {name: data, mountPath: /data}
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            limits: {memory: 512Mi, cpu: 250m}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: hackforge
+spec:
+  selector:
+    app: redis
+  ports:
+    - {port: 6379, targetPort: 6379}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio
+          command: ["server", "/data", "--console-address", ":9001"]
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+          env:
+            - name: MINIO_ROOT_USER
+              value: "minioadmin"
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: hackforge-secrets, key: MINIO_SECRET_KEY}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            limits: {memory: 512Mi, cpu: 500m}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: hackforge
+spec:
+  selector:
+    app: minio
+  ports:
+    - {name: api, port: 9000, targetPort: 9000}
+    - {name: console, port: 9001, targetPort: 9001}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-console-np
+  namespace: hackforge
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - {port: 9001, targetPort: 9001, nodePort: 30003}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+        - name: zookeeper
+          image: confluentinc/cp-zookeeper:7.6.0
+          ports:
+            - containerPort: 2181
+          env:
+            - {name: ZOOKEEPER_CLIENT_PORT, value: "2181"}
+            - {name: ZOOKEEPER_TICK_TIME, value: "2000"}
+            - {name: ZOOKEEPER_4LW_COMMANDS_WHITELIST, value: "srvr,stat,ruok"}
+          resources:
+            limits: {memory: 512Mi, cpu: 250m}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+  namespace: hackforge
+spec:
+  selector:
+    app: zookeeper
+  ports:
+    - {port: 2181, targetPort: 2181}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: confluentinc/cp-kafka:7.6.0
+          ports:
+            - containerPort: 29092
+            - containerPort: 9092
+          env:
+            - {name: KAFKA_BROKER_ID, value: "1"}
+            - {name: KAFKA_ZOOKEEPER_CONNECT, value: "zookeeper:2181"}
+            - {name: KAFKA_ADVERTISED_LISTENERS, value: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"}
+            - {name: KAFKA_LISTENERS, value: "PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092"}
+            - {name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"}
+            - {name: KAFKA_INTER_BROKER_LISTENER_NAME, value: "PLAINTEXT"}
+            - {name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "1"}
+            - {name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "true"}
+          readinessProbe:
+            exec:
+              command: ["kafka-topics", "--bootstrap-server", "localhost:29092", "--list"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 10
+          resources:
+            limits: {memory: 1Gi, cpu: 500m}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: hackforge
+spec:
+  selector:
+    app: kafka
+  ports:
+    - {name: internal, port: 29092, targetPort: 29092}
+    - {name: external, port: 9092, targetPort: 9092}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  template:
+    metadata:
+      labels:
+        app: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:latest
+          ports:
+            - containerPort: 6333
+          volumeMounts:
+            - {name: data, mountPath: /qdrant/storage}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            limits: {memory: 1Gi, cpu: 500m}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: qdrant-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  namespace: hackforge
+spec:
+  selector:
+    app: qdrant
+  ports:
+    - {port: 6333, targetPort: 6333}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: hackforge/backend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          env:
+            - {name: DB_HOST, value: "postgres"}
+            - {name: DB_PORT, value: "5432"}
+            - {name: DB_USER, value: "postgres"}
+            - {name: DB_NAME, value: "hackforge"}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: hackforge-secrets, key: DB_PASSWORD}
+            - {name: REDIS_HOST, value: "redis"}
+            - {name: REDIS_PORT, value: "6379"}
+            - {name: MINIO_HOST, value: "minio"}
+            - {name: MINIO_PORT, value: "9000"}
+            - {name: MINIO_ACCESS_KEY, value: "minioadmin"}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: hackforge-secrets, key: MINIO_SECRET_KEY}
+            - {name: KAFKA_HOST, value: "kafka"}
+            - {name: KAFKA_PORT, value: "29092"}
+            - {name: BACKEND_PORT, value: "8000"}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            limits: {memory: 512Mi, cpu: 500m}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: hackforge
+spec:
+  selector:
+    app: backend
+  ports:
+    - {port: 8000, targetPort: 8000}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-np
+  namespace: hackforge
+spec:
+  type: NodePort
+  selector:
+    app: backend
+  ports:
+    - {port: 8000, targetPort: 8000, nodePort: 30000}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-service
+  template:
+    metadata:
+      labels:
+        app: ai-service
+    spec:
+      containers:
+        - name: ai-service
+          image: hackforge/ai-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8001
+          env:
+            - {name: KAFKA_BROKERS, value: "kafka:29092"}
+            - {name: QDRANT_URL, value: "http://qdrant:6333"}
+            - {name: REDIS_URL, value: "redis://redis:6379"}
+            - {name: MINIO_ENDPOINT, value: "minio:9000"}
+            - {name: MINIO_ACCESS_KEY, value: "minioadmin"}
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: hackforge-secrets, key: MINIO_SECRET_KEY}
+            - {name: BACKEND_BASE_URL, value: "http://backend:8000"}
+            - {name: AI_SERVICE_PORT, value: "8001"}
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef: {name: hackforge-secrets, key: GROQ_API_KEY}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            limits: {memory: 4Gi, cpu: "2"}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service
+  namespace: hackforge
+spec:
+  selector:
+    app: ai-service
+  ports:
+    - {port: 8001, targetPort: 8001}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-service-np
+  namespace: hackforge
+spec:
+  type: NodePort
+  selector:
+    app: ai-service
+  ports:
+    - {port: 8001, targetPort: 8001, nodePort: 30001}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: hackforge/frontend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - {name: NEXT_PUBLIC_API_URL, value: "http://localhost:30000"}
+            - {name: NEXT_PUBLIC_AI_URL, value: "http://localhost:30001"}
+            - {name: NEXT_PUBLIC_WS_URL, value: "ws://localhost:30000"}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            limits: {memory: 512Mi, cpu: 500m}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: hackforge
+spec:
+  selector:
+    app: frontend
+  ports:
+    - {port: 3000, targetPort: 3000}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-np
+  namespace: hackforge
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - {port: 3000, targetPort: 3000, nodePort: 30002}

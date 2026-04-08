@@ -80,7 +80,7 @@ export async function verifyOTP(data: { otp_token: string; otp_code: string }) {
   return { access_token, refresh_token, user_id, intent };
 }
 
-export async function loginUser(data: { mobile: string; password: string }) {
+export async function loginUser(data: { email: string; password: string }) {
   const res = await apiClient.post('/auth/login', data);
   const { access_token, refresh_token, user_id, kyc_status, intent } = res.data;
   if (refresh_token && typeof window !== 'undefined') {

@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Loader2, Phone, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { Loader2, Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { loginUser, verifyOTP } from '@/lib/api';
 
 // --- Zod Schema ---
 const loginSchema = z.object({
-  mobile: z.string().min(10, 'Enter valid mobile number'),
+  email: z.string().email('Enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -32,14 +32,14 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { mobile: '', password: '' },
+    defaultValues: { email: '', password: '' },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
     setApiError('');
     try {
-      const res = await loginUser({ mobile: data.mobile, password: data.password });
-      login(res.access_token, { id: res.user_id, name: data.mobile });
+      const res = await loginUser({ email: data.email, password: data.password });
+      login(res.access_token, { id: res.user_id, name: data.email });
       if (typeof window !== 'undefined') sessionStorage.setItem('user_id', res.user_id);
       router.push('/chat');
     } catch (err: unknown) {
@@ -96,7 +96,7 @@ export default function LoginPage() {
 
           {otpStep ? (
             <div className="p-8 pt-4 space-y-5">
-              <p className="text-gray-400 text-sm">Your account is not yet verified. A new OTP has been sent to your mobile. Check your SMS or the backend console log for the OTP.</p>
+              <p className="text-gray-400 text-sm">Your account is not yet verified. A new OTP has been sent to your email. Check your inbox or the backend console log for the OTP.</p>
               <input
                 type="text"
                 value={otpCode}
@@ -116,22 +116,22 @@ export default function LoginPage() {
           <>
           {/* Form Section */}
           <form onSubmit={handleSubmit(onSubmit)} className="p-8 pt-4 space-y-6">
-            {/* Mobile Field */}
+            {/* Email Field */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300 ml-1">Mobile Number</label>
+              <label className="text-sm font-semibold text-gray-300 ml-1">Email Address</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Phone className="h-5 w-5 text-zinc-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
+                  <Mail className="h-5 w-5 text-zinc-400 group-focus-within:text-indigo-500 transition-colors duration-200" />
                 </div>
                 <input
-                  {...register('mobile')}
-                  type="tel"
-                  placeholder="9876543210"
-                  autoComplete="tel"
-                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all duration-300 ${errors.mobile ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                  {...register('email')}
+                  type="email"
+                  placeholder="name@example.com"
+                  autoComplete="email"
+                  className={`block w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/50 transition-all duration-300 ${errors.email ? 'border-red-500/50 ring-red-500/10' : ''}`}
                 />
               </div>
-              {errors.mobile && <p className="text-xs font-medium text-red-500 mt-1.5 ml-1">{errors.mobile.message}</p>}
+              {errors.email && <p className="text-xs font-medium text-red-500 mt-1.5 ml-1">{errors.email.message}</p>}
             </div>
 
             {/* Password Field */}

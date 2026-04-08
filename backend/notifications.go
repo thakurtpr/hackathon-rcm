@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/smtp"
 	"net/url"
@@ -74,13 +75,51 @@ func sendEmail(to, subject, body string) error {
 
 	if host == "" {
 		log.Printf("[EMAIL] SMTP not configured, skipping: to=%s subject=%s", to, subject)
+		log.Printf("[EMAIL] DEV LOG: %s", body)
 		return nil
 	}
 
 	addr := fmt.Sprintf("%s:%s", host, port)
 	auth := smtp.PlainAuth("", user, pass, host)
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", from, to, subject, body)
-	return smtp.SendMail(addr, auth, from, []string{to}, []byte(msg))
+	err := smtp.SendMail(addr, auth, from, []string{to}, []byte(msg))
+	if err != nil {
+		log.Printf("[EMAIL] FAILED to send to %s: %v", to, err)
+		log.Printf("[EMAIL] DEV LOG (FALLBACK): %s", body)
+		// Don't return error in dev so flow continues
+		return nil
+	}
+	log.Printf("[EMAIL] Sent successfully to %s", to)
+	return nil
+}
+
+// SendOTPViaEmail renders a nice OTP email and sends it
+func SendOTPViaEmail(email, otp string) error {
+	subject := "Verify your HackForge Account"
+	body := fmt.Sprintf(`
+Welcome to HackForge!
+
+Your verification code is: %s
+
+This code will expire in 5 minutes.
+If you didn't request this, please ignore this email.
+
+Best regards,
+The HackForge Team
+`, otp)
+
+	log.Printf("╔══════════════════════════════════╗")
+	log.Printf("║  EMAIL OTP for %s: %s  ║", email, otp)
+	log.Printf("╚══════════════════════════════════╝")
+
+	return sendEmail(email, subject, body)
+}
+
+// GenerateOTP returns a random 6-digit OTP as a string.
+func GenerateOTP() string {
+	src := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(src)
+	return fmt.Sprintf("%06d", r.Intn(1000000))
 }
 
 func sendSMS(to, message string) error {

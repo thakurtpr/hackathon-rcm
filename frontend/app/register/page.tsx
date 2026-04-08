@@ -107,7 +107,7 @@ export default function RegisterPage() {
 
           {otpStep ? (
             <div className="p-8 pt-4 space-y-5">
-              <p className="text-gray-400 text-sm">Enter the 6-digit OTP sent to your mobile via SMS. If SMS doesn&apos;t arrive, check the backend server console log for the OTP.</p>
+              <p className="text-gray-400 text-sm">Enter the 6-digit OTP sent to your email. Check your inbox or the backend server console log for the OTP.</p>
               <input
                 type="text"
                 value={otpCode}

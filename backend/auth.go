@@ -22,7 +22,7 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Mobile   string `json:"mobile" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -82,14 +82,14 @@ func RegisterHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "mobile or email already registered"})
 			return
 		}
-		// Store OTP in Redis with 5min TTL
-		RedisSet(context.Background(), "otp:"+otpToken, req.Mobile+":"+otpCode, 5*time.Minute)
+		// Store OTP in Redis with 5min TTL (email:otpcode)
+		RedisSet(context.Background(), "otp:"+otpToken, req.Email+":"+otpCode, 5*time.Minute)
 	}
 
-	// Send OTP via Fast2SMS (non-blocking — log error but don't fail registration)
+	// Send OTP via Email (non-blocking)
 	go func() {
-		if err := SendOTPViaSMS(req.Mobile, otpCode); err != nil {
-			log.Printf("[SMS] WARNING: OTP send failed for %s: %v", req.Mobile, err)
+		if err := SendOTPViaEmail(req.Email, otpCode); err != nil {
+			log.Printf("[EMAIL] WARNING: OTP send failed for %s: %v", req.Email, err)
 		}
 	}()
 
@@ -120,17 +120,17 @@ func VerifyOTPHandler(c *gin.Context) {
 		val = ":123456"
 	}
 
-	// val format: mobile:otpcode
+	// val format: email:otpcode
 	parts := splitOTPVal(val)
 	if len(parts) < 2 || parts[1] != req.OtpCode {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid OTP code"})
 		return
 	}
-	mobile := parts[0]
+	email := parts[0]
 
 	var userID, intent string
 	if DB != nil {
-		err = DB.QueryRow(`UPDATE users SET is_verified=TRUE WHERE mobile=$1 RETURNING id, intent`, mobile).Scan(&userID, &intent)
+		err = DB.QueryRow(`UPDATE users SET is_verified=TRUE WHERE email=$1 RETURNING id, intent`, email).Scan(&userID, &intent)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "user not found"})
 			return
@@ -170,8 +170,8 @@ func LoginHandler(c *gin.Context) {
 
 	if DB != nil {
 		err := DB.QueryRow(
-			`SELECT id, password_hash, intent, is_verified FROM users WHERE mobile=$1`,
-			req.Mobile,
+			`SELECT id, password_hash, intent, is_verified FROM users WHERE email=$1`,
+			req.Email,
 		).Scan(&userID, &hash, &intent, &isVerified)
 		if err != nil || !checkPassword(req.Password, hash) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -181,10 +181,10 @@ func LoginHandler(c *gin.Context) {
 			// Re-send OTP so user can resume verification
 			otpCode := GenerateOTP()
 			otpToken := uuid.New().String()
-			RedisSet(context.Background(), "otp:"+otpToken, req.Mobile+":"+otpCode, 5*time.Minute)
+			RedisSet(context.Background(), "otp:"+otpToken, req.Email+":"+otpCode, 5*time.Minute)
 			go func() {
-				if err := SendOTPViaSMS(req.Mobile, otpCode); err != nil {
-					log.Printf("[SMS] resend OTP failed for %s: %v", req.Mobile, err)
+				if err := SendOTPViaEmail(req.Email, otpCode); err != nil {
+					log.Printf("[EMAIL] resend OTP failed for %s: %v", req.Email, err)
 				}
 			}()
 			c.JSON(http.StatusForbidden, gin.H{
@@ -282,7 +282,7 @@ func DigiLockerCallbackHandler(c *gin.Context) {
 }
 
 func splitOTPVal(val string) []string {
-	// Format: mobile:otpcode
+	// Format: email:otpcode
 	for i := len(val) - 1; i >= 0; i-- {
 		if val[i] == ':' {
 			return []string{val[:i], val[i+1:]}
