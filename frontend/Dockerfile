@@ -6,6 +6,16 @@ RUN npm ci --legacy-peer-deps
 
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Set public vars before build — Next.js bakes NEXT_PUBLIC_* into the JS bundle
+# at npm run build time, NOT at container start. If unset here, the fallback
+# http://localhost:8000 gets embedded and external users hit their own localhost.
+ENV NEXT_PUBLIC_API_URL=/api/backend
+ENV NEXT_PUBLIC_AI_URL=/api/ai
+ENV NEXT_PUBLIC_WS_URL=/ws
+# Server-side rewrite destinations — also evaluated at build time in next.config.mjs.
+# Must point to Docker service names since this runs inside the compose network.
+ENV API_INTERNAL_URL=http://backend:8000
+ENV AI_INTERNAL_URL=http://ai-service:8001
 RUN npm run build
 
 FROM node:20-alpine AS runner

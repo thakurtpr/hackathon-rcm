@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useIntentStore } from '@/store/intentStore';
 import { useAuthStore } from '@/store/authStore';
@@ -119,11 +120,14 @@ export default function LandingPage() {
 
           <div className="lg:col-span-5 relative group">
             <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl border-4 border-gray-800 transition-transform duration-500 group-hover:scale-[1.02]">
-              <div className="w-full aspect-[4/5] bg-gray-950 flex items-center justify-center rounded-2xl border-2 border-white/5">
-                <div className="flex flex-col items-center gap-4 text-white opacity-20">
-                  <span className="material-symbols-outlined text-[80px]">person</span>
-                  <p className="font-black text-xl uppercase tracking-[0.2em]">Student Image</p>
-                </div>
+              <div className="w-full aspect-[4/5] relative">
+                <Image
+                  src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800&fit=crop"
+                  alt="Students collaborating on global education goals"
+                  fill
+                  className="object-cover"
+                  priority
+                />
               </div>
               <div className="absolute bottom-6 left-6 right-6 glass-panel p-6 rounded-2xl shadow-lg border border-white/10">
                 <div className="flex items-center gap-4 mb-3">
