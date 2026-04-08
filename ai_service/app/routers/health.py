@@ -1,4 +1,6 @@
 import logging
+import time
+from typing import Any, Dict
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Request
@@ -71,3 +73,48 @@ async def health(request: Request) -> HealthResponse:
         minio_connected=minio_ok,
         risk_model_loaded=risk_model_loaded,
     )
+
+
+@router.get("/health/groq")
+async def health_groq(request: Request) -> Dict[str, Any]:
+    """Make a real Groq API call to verify the connection is live."""
+    settings = get_settings()
+    model = settings.groq_model
+    probe_prompt = "Say 'hello' in exactly one word."
+
+    start = time.monotonic()
+    try:
+        from groq import Groq  # type: ignore
+
+        def _call() -> str:
+            client = Groq(api_key=settings.groq_api_key)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": probe_prompt}],
+                max_tokens=10,
+            )
+            return response.choices[0].message.content or ""
+
+        import asyncio
+        response_text = await asyncio.to_thread(_call)
+        latency_ms = (time.monotonic() - start) * 1000
+        logger.info(
+            "GROQ_HEALTH_CHECK: model=%s latency_ms=%.1f response=%r",
+            model, latency_ms, response_text,
+        )
+        return {
+            "groq_available": True,
+            "latency_ms": round(latency_ms, 1),
+            "response": response_text,
+            "model": model,
+        }
+    except Exception as exc:
+        latency_ms = (time.monotonic() - start) * 1000
+        logger.warning(
+            "GROQ_HEALTH_CHECK failed: model=%s latency_ms=%.1f error=%s",
+            model, latency_ms, exc,
+        )
+        return {
+            "groq_available": False,
+            "error": str(exc),
+        }

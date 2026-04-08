@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface PipelineStage {
   id: string;
@@ -33,15 +34,27 @@ const initialState = {
   webSocketStatus: 'disconnected' as ConnectionStatus,
 };
 
-export const useApplicationStore = create<ApplicationStore>((set) => ({
-  ...initialState,
-  setApplicationId: (id) => set({ applicationId: id }),
-  updateStageStatus: (stageId, status) =>
-    set((state) => ({
-      pipelineStages: state.pipelineStages.map((stage) =>
-        stage.id === stageId ? { ...stage, status } : stage
-      ),
-    })),
-  setWebSocketStatus: (status) => set({ webSocketStatus: status }),
-  resetStore: () => set(initialState),
-}));
+export const useApplicationStore = create<ApplicationStore>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setApplicationId: (id) => set({ applicationId: id }),
+      updateStageStatus: (stageId, status) =>
+        set((state) => ({
+          pipelineStages: state.pipelineStages.map((stage) =>
+            stage.id === stageId ? { ...stage, status } : stage
+          ),
+        })),
+      setWebSocketStatus: (status) => set({ webSocketStatus: status }),
+      resetStore: () => set(initialState),
+    }),
+    {
+      name: 'application-storage',
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        applicationId: state.applicationId,
+        pipelineStages: state.pipelineStages,
+      }),
+    }
+  )
+);

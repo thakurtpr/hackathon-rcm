@@ -36,7 +36,38 @@ func CreateApplicationHandler(c *gin.Context) {
 		req.Type = "loan"
 	}
 
+	// --- Idempotency key check (Redis) ---
+	idempotencyKey := c.GetHeader("X-Idempotency-Key")
+	if idempotencyKey != "" && RDB != nil {
+		ctx := c.Request.Context()
+		redisKey := "idempotency:" + idempotencyKey
+		cached, err := RDB.Get(ctx, redisKey).Result()
+		if err == nil && cached != "" {
+			// Return cached response as-is
+			c.Header("Content-Type", "application/json")
+			c.String(http.StatusOK, cached)
+			return
+		}
+	}
+
+	// --- Duplicate active application check ---
+	if DB != nil {
+		var existingID string
+		err := DB.QueryRow(
+			`SELECT id FROM applications WHERE user_id = $1 AND status != 'rejected' LIMIT 1`,
+			req.UserID,
+		).Scan(&existingID)
+		if err == nil && existingID != "" {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":  "You already have an active application",
+				"app_id": existingID,
+			})
+			return
+		}
+	}
+
 	appID := uuid.New().String()
+	now := time.Now()
 	if DB != nil {
 		DB.Exec(`INSERT INTO applications(id,user_id,type,status,loan_amount,pipeline_stages) VALUES($1,$2,$3,'submitted',$4,'{}')`,
 			appID, req.UserID, req.Type, req.LoanAmount)
@@ -47,11 +78,22 @@ func CreateApplicationHandler(c *gin.Context) {
 	})
 	AddAuditLog(appID, req.UserID, "APPLICATION_CREATED", map[string]string{"type": req.Type})
 
-	c.JSON(http.StatusCreated, gin.H{
+	responseBody := gin.H{
 		"app_id":     appID,
 		"status":     "submitted",
-		"created_at": time.Now(),
-	})
+		"created_at": now,
+	}
+
+	// Store response in Redis for idempotency (TTL = 24h)
+	if idempotencyKey != "" && RDB != nil {
+		ctx := c.Request.Context()
+		redisKey := "idempotency:" + idempotencyKey
+		if encoded, err := json.Marshal(responseBody); err == nil {
+			RDB.Set(ctx, redisKey, string(encoded), 86400*time.Second)
+		}
+	}
+
+	c.JSON(http.StatusCreated, responseBody)
 }
 
 func GetApplicationHandler(c *gin.Context) {

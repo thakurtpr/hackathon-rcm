@@ -72,9 +72,21 @@ CREATE TABLE IF NOT EXISTS profiles (
     category         TEXT,
     bank_account     TEXT,
     ifsc_code        TEXT,
-    kyc_status       TEXT DEFAULT 'pending',
-    updated_at       TIMESTAMPTZ DEFAULT NOW()
+    kyc_status        TEXT DEFAULT 'pending',
+    face_match_result TEXT DEFAULT NULL,
+    face_match_score  NUMERIC DEFAULT NULL,
+    updated_at        TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent columns for existing deployments
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='face_match_result') THEN
+    ALTER TABLE profiles ADD COLUMN face_match_result TEXT DEFAULT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='face_match_score') THEN
+    ALTER TABLE profiles ADD COLUMN face_match_score NUMERIC DEFAULT NULL;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS documents (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -200,4 +212,6 @@ CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_app_id ON audit_logs(app_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_pan_hash ON profiles(pan_hash);
 CREATE INDEX IF NOT EXISTS idx_profiles_aadhaar_hash ON profiles(aadhaar_hash);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_app_per_user ON applications(user_id) WHERE status != 'rejected';
 `

@@ -341,14 +341,26 @@ def _call_groq_messages(messages: list, max_tokens: int = 800) -> Optional[str]:
         return None
     try:
         from groq import Groq  # type: ignore
-        client = Groq(api_key=settings.groq_api_key)
-        response = client.chat.completions.create(
-            model="llama-3-70b-8192",
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=0.4,
+        from app.services.groq_logger import log_groq_call
+
+        # Use model from settings (llama-3.3-70b-versatile) — configurable via GROQ_MODEL env var.
+        model = settings.groq_model
+        user_prompt = next(
+            (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
         )
-        return response.choices[0].message.content or ""
+
+        @log_groq_call
+        def _groq_create(prompt: str, model: str) -> str:
+            client = Groq(api_key=settings.groq_api_key)
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.4,
+            )
+            return response.choices[0].message.content or ""
+
+        return _groq_create(user_prompt, model)
     except Exception as exc:
         logger.warning("Groq call failed: %s", exc)
         return None
@@ -917,12 +929,13 @@ async def handle_behavioral_assessment(
 async def _fetch_or_generate_questions(app_id: str, user_id: str, conv_data: dict) -> list:
     """Fetch from behavioral API or generate via pipeline."""
     try:
-        # FIX: Use Docker service name + config port instead of hardcoded localhost:8001.
-        # IDEAL: This URL should come from settings.ai_service_base_url (env-configurable).
         settings = get_settings()
+        # Use ai_service_base_url from config (defaults to localhost:8001 for local dev,
+        # override to http://ai-service:8001 via env var when running inside Docker)
+        ai_base = settings.ai_service_base_url.rstrip("/")
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.get(
-                f"http://ai-service:{settings.ai_service_port}/behavioral/questions",
+                f"{ai_base}/behavioral/questions",
                 params={"app_id": app_id, "user_id": user_id},
             )
             if resp.status_code == 200:
@@ -1183,6 +1196,15 @@ async def process_message(
     """
     Process a chat message through the stage machine.
     Returns (reply_text, current_stage_after_processing).
+
+    Separation of concerns:
+    - This agent handles conversational onboarding ONLY for users who arrive
+      via the AI chat widget (/chat page or ChatWidget).
+    - The frontend /onboarding wizard (frontend/app/onboarding/page.tsx) is the
+      primary structured data-collection path. If a user completes the wizard,
+      the wizard calls this endpoint with a synthetic message to sync state to
+      KYC_GUIDANCE stage so the two channels stay consistent.
+    - This agent must NOT be used to re-collect data the wizard already gathered.
     """
     stage = await get_stage(conversation_id)
     conv_data = await get_conv_data(conversation_id)
@@ -1225,6 +1247,10 @@ async def process_message(
     await set_conv_data(conversation_id, conv_data)
 
     if new_stage and new_stage != stage:
+        logger.info(
+            "STAGE TRANSITION: %s -> %s for conv %s",
+            stage, new_stage, conversation_id,
+        )
         await set_stage(conversation_id, new_stage)
         stage = new_stage
 

@@ -10,12 +10,83 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.pipelines.behavioral_pipeline import (
     DIMENSION_WEIGHTS,
-    _fallback_questions,
     _validate_questions,
+    generate_questions,
     score_answers,
 )
 from app.models.requests import AnswerItem, SubmitAnswersRequest
 from app.models.responses import BehavioralResult
+
+
+# ---------------------------------------------------------------------------
+# Helper: build a minimal valid 8-question list
+# ---------------------------------------------------------------------------
+
+def _make_valid_questions(suffix: str = "") -> list:
+    """Return a valid 8-question list whose first question text includes suffix."""
+    return [
+        {
+            "question_id": "q1",
+            "question_text": f"Financial scenario question for this student {suffix}",
+            "type": "mcq",
+            "options": ["A", "B", "C", "D"],
+            "dimension": "financial_responsibility",
+        },
+        {
+            "question_id": "q2",
+            "question_text": f"Resilience free text question {suffix}",
+            "type": "free_text",
+            "options": None,
+            "dimension": "resilience",
+        },
+        {
+            "question_id": "q3",
+            "question_text": f"Goal clarity free text question {suffix}",
+            "type": "free_text",
+            "options": None,
+            "dimension": "goal_clarity",
+        },
+        {
+            "question_id": "q4",
+            "question_text": f"Risk awareness MCQ one {suffix}",
+            "type": "mcq",
+            "options": ["A", "B", "C", "D"],
+            "dimension": "risk_awareness",
+        },
+        {
+            "question_id": "q5",
+            "question_text": f"Risk awareness MCQ two {suffix}",
+            "type": "mcq",
+            "options": ["A", "B", "C", "D"],
+            "dimension": "risk_awareness",
+        },
+        {
+            "question_id": "q6",
+            "question_text": f"Initiative MCQ one {suffix}",
+            "type": "mcq",
+            "options": ["A", "B", "C", "D"],
+            "dimension": "initiative",
+        },
+        {
+            "question_id": "q7",
+            "question_text": f"Initiative MCQ two {suffix}",
+            "type": "mcq",
+            "options": ["A", "B", "C", "D"],
+            "dimension": "initiative",
+        },
+        {
+            "question_id": "q8",
+            "question_text": f"Social capital MCQ {suffix}",
+            "type": "mcq",
+            "options": ["A", "B", "C", "D"],
+            "dimension": "social_capital",
+        },
+    ]
+
+
+def _fallback_questions() -> list:
+    """Return a stable set of questions for tests that don't test uniqueness."""
+    return _make_valid_questions(suffix="fallback")
 
 
 # ---------------------------------------------------------------------------
@@ -208,12 +279,23 @@ def test_question_validation_fails_9():
 
 
 def test_fallback_questions_have_correct_mix():
-    """Fallback questions must have 3 MCQ situational + 2 MCQ financial + 2 free_text + 1 free_text initiative."""
+    """
+    Per the updated spec, the 8 questions must have:
+      Q1 MCQ financial_responsibility
+      Q2 free_text resilience
+      Q3 free_text goal_clarity
+      Q4 MCQ risk_awareness
+      Q5 MCQ risk_awareness
+      Q6 MCQ initiative
+      Q7 MCQ initiative
+      Q8 MCQ social_capital
+    = 6 MCQ, 2 free_text
+    """
     questions = _fallback_questions()
     mcq_count = sum(1 for q in questions if q["type"] == "mcq")
     free_text_count = sum(1 for q in questions if q["type"] == "free_text")
-    assert mcq_count == 5, f"Expected 5 MCQ questions, got {mcq_count}"
-    assert free_text_count == 3, f"Expected 3 free_text questions, got {free_text_count}"
+    assert mcq_count == 6, f"Expected 6 MCQ questions per updated spec, got {mcq_count}"
+    assert free_text_count == 2, f"Expected 2 free_text questions per updated spec, got {free_text_count}"
 
     # Each MCQ must have exactly 4 options
     for q in questions:
@@ -221,9 +303,11 @@ def test_fallback_questions_have_correct_mix():
             assert q.get("options") is not None, f"MCQ {q['question_id']} missing options"
             assert len(q["options"]) == 4, f"MCQ {q['question_id']} must have 4 options"
 
-    # Initiative dimension must have at least one free_text
-    initiative_free = [q for q in questions if q["dimension"] == "initiative" and q["type"] == "free_text"]
-    assert len(initiative_free) >= 1, "Must have at least one free_text initiative question"
+    # Resilience and goal_clarity must be free_text
+    resilience_free = [q for q in questions if q["dimension"] == "resilience" and q["type"] == "free_text"]
+    assert len(resilience_free) >= 1, "Must have at least one free_text resilience question"
+    goal_free = [q for q in questions if q["dimension"] == "goal_clarity" and q["type"] == "free_text"]
+    assert len(goal_free) >= 1, "Must have at least one free_text goal_clarity question"
 
 
 def test_fallback_questions_cover_all_dimensions():
@@ -347,12 +431,34 @@ def test_get_questions_returns_cached(app_client):
     assert len(data["questions"]) == 8
 
 
-def test_get_questions_returns_404_when_not_cached(app_client):
-    """GET /behavioral/questions must return 404 when no cached questions exist."""
-    with patch("app.services.redis_service.get_json", new=AsyncMock(return_value=None)):
+def test_get_questions_returns_503_when_generation_fails(app_client):
+    """GET /behavioral/questions must return 503 when AI generation fails (no cache, LLM down)."""
+    async def raise_runtime(*args, **kwargs):
+        raise RuntimeError("AI question generation failed after 2 attempts.")
+
+    with patch("app.services.redis_service.get_json", new=AsyncMock(return_value=None)), \
+         patch("app.services.backend_client.get_student_profile", new=AsyncMock(return_value={})), \
+         patch("app.pipelines.behavioral_pipeline.generate_questions", new=raise_runtime):
         response = app_client.get("/behavioral/questions?app_id=nonexistent-app")
 
-    assert response.status_code == 404
+    assert response.status_code == 503
+
+
+def test_get_questions_generates_when_not_cached(app_client):
+    """GET /behavioral/questions generates fresh questions from AI when not cached."""
+    fresh_questions = _make_valid_questions(suffix="fresh-gen")
+
+    with patch("app.services.redis_service.get_json", new=AsyncMock(return_value=None)), \
+         patch("app.services.redis_service.set_json", new=AsyncMock(return_value=None)), \
+         patch("app.services.backend_client.get_student_profile", new=AsyncMock(return_value={})), \
+         patch("app.config.get_settings") as mock_settings:
+        mock_settings.return_value.make_llm_call = lambda p: json.dumps(fresh_questions)
+        response = app_client.get("/behavioral/questions?app_id=new-app-123")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["app_id"] == "new-app-123"
+    assert len(data["questions"]) == 8
 
 
 def test_submit_answers_returns_202(app_client):
@@ -395,3 +501,132 @@ def test_submit_answers_returns_202_no_body(app_client):
     assert response.status_code == 202
     # 202 response should be empty
     assert response.content == b""
+
+
+# ---------------------------------------------------------------------------
+# Uniqueness tests — AI must generate different questions each call
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_generate_questions_returns_different_questions_each_call():
+    """
+    generate_questions must produce different first questions on consecutive calls
+    when the cache is bypassed (force_refresh=True).
+
+    The test mocks the Groq LLM call to return a different question set on each
+    invocation, simulating the real-world behaviour where the AI generates fresh
+    personalised questions.
+    """
+    profile = {
+        "full_name": "Priya Patel",
+        "course": "B.Tech Computer Science",
+        "institution": "NIT Odisha",
+        "loan_amount": "500000",
+        "family_income": "1l_to_3l",
+        "state": "Odisha",
+        "category": "OBC",
+        "dob": "2003-05-15",
+    }
+
+    questions_set_1 = _make_valid_questions(suffix="SET_ONE_unique_abc123")
+    questions_set_2 = _make_valid_questions(suffix="SET_TWO_unique_xyz789")
+
+    call_count = 0
+
+    def mock_llm_first_call(prompt: str) -> str:
+        return json.dumps(questions_set_1)
+
+    def mock_llm_second_call(prompt: str) -> str:
+        return json.dumps(questions_set_2)
+
+    # First call — no cache, generates set 1
+    mock_redis_1 = AsyncMock()
+    mock_redis_1.get_json = AsyncMock(return_value=None)
+    mock_redis_1.set_json = AsyncMock(return_value=None)
+
+    result_1 = await generate_questions(
+        profile=profile,
+        app_id="uniqueness-test-app",
+        redis_service=mock_redis_1,
+        llm_call_fn=mock_llm_first_call,
+        force_refresh=True,
+    )
+
+    # Second call — force_refresh bypasses cache, generates set 2
+    mock_redis_2 = AsyncMock()
+    mock_redis_2.get_json = AsyncMock(return_value=None)
+    mock_redis_2.set_json = AsyncMock(return_value=None)
+
+    result_2 = await generate_questions(
+        profile=profile,
+        app_id="uniqueness-test-app",
+        redis_service=mock_redis_2,
+        llm_call_fn=mock_llm_second_call,
+        force_refresh=True,
+    )
+
+    assert len(result_1) == 8
+    assert len(result_2) == 8
+
+    first_q_text_1 = result_1[0]["question_text"]
+    first_q_text_2 = result_2[0]["question_text"]
+
+    assert first_q_text_1 != first_q_text_2, (
+        f"Expected different questions on consecutive calls, but both returned: {first_q_text_1!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_questions_raises_on_llm_failure():
+    """
+    generate_questions must raise RuntimeError (not return hardcoded fallback questions)
+    when the LLM fails on all retry attempts.
+    """
+    profile = {"full_name": "Test Student", "course": "B.Sc", "institution": "Test College"}
+
+    def always_failing_llm(prompt: str) -> str:
+        raise RuntimeError("Groq API unavailable")
+
+    mock_redis = AsyncMock()
+    mock_redis.get_json = AsyncMock(return_value=None)
+    mock_redis.set_json = AsyncMock(return_value=None)
+
+    with pytest.raises(RuntimeError, match="AI question generation failed"):
+        await generate_questions(
+            profile=profile,
+            app_id="fail-test-app",
+            redis_service=mock_redis,
+            llm_call_fn=always_failing_llm,
+            force_refresh=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_generate_questions_serves_cache_when_not_force_refresh():
+    """
+    generate_questions must return cached questions without calling the LLM
+    when force_refresh=False and a cache hit exists.
+    """
+    cached = _make_valid_questions(suffix="cached_version")
+
+    mock_redis = AsyncMock()
+    mock_redis.get_json = AsyncMock(return_value=cached)
+    mock_redis.set_json = AsyncMock(return_value=None)
+
+    llm_call_count = 0
+
+    def counting_llm(prompt: str) -> str:
+        nonlocal llm_call_count
+        llm_call_count += 1
+        return json.dumps(_make_valid_questions(suffix="should_not_be_called"))
+
+    result = await generate_questions(
+        profile={},
+        app_id="cache-hit-test",
+        redis_service=mock_redis,
+        llm_call_fn=counting_llm,
+        force_refresh=False,
+    )
+
+    assert result == cached, "Should return cached questions unchanged"
+    assert llm_call_count == 0, "LLM must NOT be called when serving from cache"

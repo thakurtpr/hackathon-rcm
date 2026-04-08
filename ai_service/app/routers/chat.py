@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.agents.conversation_agent import process_message
@@ -20,6 +20,14 @@ async def chat_message(body: ChatRequest, request: Request) -> ChatResponse:
 
     conversation_id = body.conversation_id or str(uuid.uuid4())
     embedder = getattr(request.app.state, "embedder", None)
+
+    # Read current stage from Redis at the start of every request.
+    # Default to "GREETING" (mapped to INTENT) if key missing or Redis unavailable.
+    try:
+        stage = await redis_service.get_str(f"conv_stage:{conversation_id}") or "GREETING"
+    except Exception:
+        stage = "GREETING"
+    logger.info("[CHAT] conversation_id=%s current_stage=%s", conversation_id, stage)
 
     reply, current_stage = await process_message(
         message=body.message,
@@ -96,3 +104,18 @@ async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/reset")
+async def reset_conversation(conversation_id: str = Query(..., description="Conversation ID to reset")) -> dict:
+    """Delete Redis keys for the given conversation, resetting it to the initial INTENT stage."""
+    try:
+        await redis_service.delete(f"conv_stage:{conversation_id}")
+    except Exception:
+        pass
+    try:
+        await redis_service.delete(f"conv_data:{conversation_id}")
+    except Exception:
+        pass
+    logger.info("[CHAT] reset conversation_id=%s", conversation_id)
+    return {"status": "reset", "conversation_id": conversation_id}

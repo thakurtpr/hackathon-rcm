@@ -71,7 +71,7 @@ func main() {
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Idempotency-Key")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -104,6 +104,7 @@ func main() {
 
 		docs := p.Group("/documents")
 		docs.POST("/upload", DocumentUploadHandler)
+		docs.GET("/user/:user_id/status", UserDocumentsStatusMapHandler)
 		docs.GET("/:doc_id/status", DocumentStatusHandler)
 
 		apps := p.Group("/applications")

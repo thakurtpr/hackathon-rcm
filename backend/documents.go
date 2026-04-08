@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -62,6 +63,50 @@ func DocumentUploadHandler(c *gin.Context) {
 		"status":     "processing",
 		"upload_ts":  time.Now(),
 	})
+}
+
+// UserDocumentsStatusMapHandler returns all document statuses for a user plus face match result.
+// GET /documents/user/:user_id/status
+// Response: { "aadhaar": "verified", "pan": "processing", ..., "face_match_result": "verified", "face_match_score": 0.92 }
+func UserDocumentsStatusMapHandler(c *gin.Context) {
+	userID := c.Param("user_id")
+	statusMap := map[string]interface{}{}
+
+	if DB != nil {
+		rows, err := DB.Query(
+			`SELECT doc_type, COALESCE(status, 'processing') FROM documents WHERE user_id=$1`,
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var dt, st string
+				if rows.Scan(&dt, &st) == nil {
+					statusMap[dt] = st
+				}
+			}
+		}
+
+		// Fetch face match result and score from profiles
+		var faceMatchResult sql.NullString
+		var faceMatchScore sql.NullFloat64
+		DB.QueryRow(
+			`SELECT face_match_result, face_match_score FROM profiles WHERE user_id=$1`, userID,
+		).Scan(&faceMatchResult, &faceMatchScore)
+
+		if faceMatchResult.Valid && faceMatchResult.String != "" {
+			statusMap["face_match_result"] = faceMatchResult.String
+		} else {
+			statusMap["face_match_result"] = "pending"
+		}
+		if faceMatchScore.Valid {
+			statusMap["face_match_score"] = faceMatchScore.Float64
+		} else {
+			statusMap["face_match_score"] = nil
+		}
+	}
+
+	c.JSON(http.StatusOK, statusMap)
 }
 
 func DocumentStatusHandler(c *gin.Context) {

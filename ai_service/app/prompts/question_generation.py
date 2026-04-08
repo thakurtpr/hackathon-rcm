@@ -1,5 +1,11 @@
-QUESTION_GENERATION_PROMPT = """
-You are an expert behavioral psychologist creating personalized assessment questions for a student loan platform in India. Your goal is to generate questions that feel WRITTEN SPECIFICALLY FOR THIS STUDENT — not generic questionnaires.
+from datetime import datetime as _dt
+
+
+def _build_question_generation_prompt(profile_context: str) -> str:
+    timestamp = _dt.utcnow().isoformat()
+    return f"""You are generating a UNIQUE behavioral assessment for a specific student. NEVER repeat the same questions. Every assessment MUST be different.
+
+GENERATION TIMESTAMP (use this to guarantee uniqueness): {timestamp}
 
 STUDENT PROFILE:
 {profile_context}
@@ -7,6 +13,9 @@ STUDENT PROFILE:
 ══════════════════════════════════════════════════
 MANDATORY PERSONALIZATION RULES (NEVER VIOLATE):
 ══════════════════════════════════════════════════
+
+Each question MUST reference the student's specific course, institution, state, and background.
+You MUST NOT use generic or template-like phrasing. Every question must feel written exclusively for THIS student.
 
 1. REFERENCE THE STUDENT DIRECTLY:
    - Use their EXACT course name and specific academic challenges of that course
@@ -44,30 +53,37 @@ MANDATORY PERSONALIZATION RULES (NEVER VIOLATE):
    - Law (LLB): reference legal aid, court internships, state bar exam
 
 ══════════════════════════════════════════════════
-QUESTION MIX (MANDATORY — EXACTLY 8 QUESTIONS):
+QUESTION ORDER (MANDATORY — EXACTLY 8 QUESTIONS):
 ══════════════════════════════════════════════════
 
-- Q1: MCQ — financial_responsibility (uses their actual loan amount in scenario)
-- Q2: MCQ — resilience (set in their specific institution/city context)
-- Q3: free_text — goal_clarity (references their course and regional career opportunities)
-- Q4: MCQ — financial_responsibility (income/budget management for their income band)
-- Q5: MCQ — resilience (academic setback specific to their course challenges)
-- Q6: free_text — initiative (references a real challenge in their field or region)
-- Q7: MCQ — risk_awareness (uses their loan amount and expected salary post-graduation)
-- Q8: free_text — social_capital (references family/community context for their category/income)
+Q1: MCQ   — financial_responsibility  (scenario using their actual loan amount)
+Q2: free_text — resilience            (personal setback question referencing their course)
+Q3: free_text — goal_clarity          (references their course and regional career opportunities)
+Q4: MCQ   — risk_awareness            (first risk scenario using loan amount and income)
+Q5: MCQ   — risk_awareness            (second risk scenario — different angle, e.g. interest rate or job market)
+Q6: MCQ   — initiative                (first initiative scenario in their institution/city context)
+Q7: MCQ   — initiative                (second initiative scenario — different real challenge in their field)
+Q8: MCQ   — social_capital            (family/community scenario for their category/income background)
 
-MCQ options: exactly 4, ordered worst to best financial/behavioral decision.
-Free text: open-ended question requiring 3–5 sentences for a complete answer.
+MCQ options: exactly 4 strings, ordered worst to best behavioral/financial decision.
+Free text: open-ended, requires 3–5 sentences for a complete answer.
 
 Return ONLY a valid JSON array. No markdown, no explanation, no preamble:
 [
   {{
     "question_id": "q1",
-    "question_text": "...(mentions student's course/institution/loan amount directly)...",
+    "question_text": "...(explicitly mentions student's course/institution/loan amount)...",
     "type": "mcq",
     "options": ["option A (worst)", "option B", "option C", "option D (best)"],
     "dimension": "financial_responsibility"
   }},
-  ...exactly 8 items...
-]
-"""
+  ...exactly 8 items total...
+]"""
+
+
+# Module-level prompt template kept for backward compatibility with imports.
+# New code should call _build_question_generation_prompt(profile_context) directly.
+QUESTION_GENERATION_PROMPT = (
+    "DEPRECATED — use _build_question_generation_prompt(profile_context) instead.\n"
+    "{profile_context}"
+)

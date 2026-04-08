@@ -83,6 +83,33 @@ async def get_app_count(user_id: str, days: int = 30) -> int:
         return 0
 
 
+async def get_student_profile(app_id: str, user_id: str = "") -> Optional[dict]:
+    """
+    Fetch student profile for question personalisation.
+
+    Tries /applications/{app_id}/profile first (returns merged user+app data),
+    then falls back to /users/{user_id}/profile if user_id is provided.
+    Returns None (silently) when the backend is unreachable so callers
+    can proceed with an empty profile.
+    """
+    try:
+        resp = await get_http_client().get(f"/applications/{app_id}/profile")
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.ConnectError:
+        logger.warning("Person B not reachable — operating in standalone mode (get_student_profile)")
+        return None
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404 and user_id:
+            # Application profile endpoint not found — try user profile directly
+            return await get_profile(user_id)
+        logger.warning("get_student_profile app_id=%s failed: %s", app_id, exc)
+        return None
+    except Exception as exc:
+        logger.error("get_student_profile app_id=%s failed: %s", app_id, exc)
+        return None
+
+
 async def get_document_status(doc_id: str) -> Optional[dict]:
     try:
         resp = await get_http_client().get(f"/documents/{doc_id}/status")

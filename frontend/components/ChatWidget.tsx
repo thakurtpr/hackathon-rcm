@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageCircle, X, Send, Paperclip, Camera, FileText } from 'lucide-react';
-import { useChatStore } from '@/store/chatStore';
+import { useRouter } from 'next/navigation';
+import { MessageCircle, X, Send, Paperclip, Camera, FileText, Upload, BarChart2 } from 'lucide-react';
+import { useChatStore, type ConversationStage } from '@/store/chatStore';
 import { cn } from '@/lib/utils';
 import { sendChatMessage, uploadDocument } from '@/lib/api';
 import { WebcamCapture } from '@/components/kyc/WebcamCapture';
@@ -27,13 +28,16 @@ function formatFileSize(bytes: number): string {
 }
 
 export default function ChatWidget() {
+  const router = useRouter();
   const {
     isOpen,
     messages,
     isTyping,
+    currentStage,
     toggleChat,
     addMessage,
     setTyping,
+    setCurrentStage,
   } = useChatStore();
 
   const [inputValue, setInputValue] = useState('');
@@ -44,6 +48,17 @@ export default function ChatWidget() {
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle navigation / UI changes driven by conversation stage transitions.
+  // This effect fires whenever currentStage changes after an AI response.
+  useEffect(() => {
+    if (currentStage === 'RESULT_EXPLANATION') {
+      // Navigate to the result screen so the user sees the full decision page.
+      router.push('/application/result');
+    }
+    // KYC_GUIDANCE and BEHAVIORAL_ASSESSMENT are handled inline via the stage
+    // banner rendered in the chat window (see JSX below).
+  }, [currentStage, router]);
 
   // Auto-scroll
   useEffect(() => {
@@ -91,17 +106,22 @@ export default function ChatWidget() {
     try {
       const sessionId = typeof window !== 'undefined' ? sessionStorage.getItem('chat_session') ?? undefined : undefined;
       const response = await sendChatMessage(text, sessionId);
-      const reply = response?.response || response?.message || "I can help you with your loan status, disbursal schedule, scholarship matches, and more.";
+      // response from POST /chat/message is a ChatResponse: { reply, sources, conversation_id, current_stage }
+      const reply = response?.reply || response?.response || response?.message || "I can help you with your loan status, disbursal schedule, scholarship matches, and more.";
       addMessage({ sender: 'bot', text: reply });
-      if (response?.session_id && typeof window !== 'undefined') {
-        sessionStorage.setItem('chat_session', response.session_id);
+      if (response?.conversation_id && typeof window !== 'undefined') {
+        sessionStorage.setItem('chat_session', response.conversation_id);
+      }
+      // Update conversation stage so UI can react (document upload CTA, assessment bar, result redirect).
+      if (response?.current_stage) {
+        setCurrentStage(response.current_stage as ConversationStage);
       }
     } catch {
       addMessage({ sender: 'bot', text: 'I apologize, I am temporarily unavailable. Please try again.' });
     } finally {
       setTyping(false);
     }
-  }, [addMessage, setTyping]);
+  }, [addMessage, setTyping, setCurrentStage]);
 
   const handleSendMessage = async () => {
     const text = inputValue.trim();
@@ -210,6 +230,31 @@ export default function ChatWidget() {
               </div>
             )}
           </div>
+
+          {/* Stage-driven CTAs — shown based on current AI conversation stage */}
+          {currentStage === 'KYC_GUIDANCE' && (
+            <div className="px-4 py-2 bg-indigo-900/40 border-t border-indigo-700/50">
+              <p className="text-xs text-indigo-300 font-semibold mb-1">Documents Required</p>
+              <p className="text-xs text-gray-400 mb-2">Upload your documents to proceed with verification.</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Upload className="w-3 h-3" /> Upload Documents
+              </button>
+            </div>
+          )}
+          {currentStage === 'BEHAVIORAL_ASSESSMENT' && (
+            <div className="px-4 py-2 bg-purple-900/40 border-t border-purple-700/50">
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart2 className="w-3 h-3 text-purple-400" />
+                <p className="text-xs text-purple-300 font-semibold">Behavioral Assessment in Progress</p>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-1.5">
+                <div className="bg-purple-500 h-1.5 rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </div>
+          )}
 
           {/* File Preview */}
           {attachedFile && (

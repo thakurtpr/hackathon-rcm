@@ -143,19 +143,83 @@ export async function getDocumentStatus(docId: string) {
   return res.data;
 }
 
-export async function getUserDocumentsStatus(userId: string): Promise<Record<string, string>> {
+export interface DocumentsStatusResponse {
+  documents: Record<string, string>;
+  face_match_result: 'pending' | 'verified' | 'manual_review' | 'failed';
+  face_match_score: number | null;
+}
+
+export async function getUserDocumentsStatus(userId: string): Promise<DocumentsStatusResponse> {
   try {
-    const res = await apiClient.get(`/documents/${userId}/status`);
-    return res.data as Record<string, string>;
+    const res = await apiClient.get(`/documents/user/${userId}/status`);
+    const raw = res.data as Record<string, unknown>;
+    // Separate face_match fields from doc-type status fields
+    const face_match_result = (raw['face_match_result'] as DocumentsStatusResponse['face_match_result']) ?? 'pending';
+    const face_match_score = (raw['face_match_score'] as number | null) ?? null;
+    const documents: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (k !== 'face_match_result' && k !== 'face_match_score') {
+        documents[k] = v as string;
+      }
+    }
+    return { documents, face_match_result, face_match_score };
   } catch {
-    return {};
+    return { documents: {}, face_match_result: 'pending', face_match_score: null };
   }
 }
 
+export interface OcrField {
+  [key: string]: string | number | null;
+}
+
+export interface OcrResult {
+  doc_type: string;
+  fields: OcrField;
+  doc_trust_score: number;
+  doc_authentic: boolean;
+}
+
+/** Fetch OCR-extracted fields from Redis (stored after Kafka doc.uploaded pipeline runs) */
+export async function getOcrResult(userId: string, docType: string): Promise<OcrResult | null> {
+  try {
+    const res = await aiClient.get(`/ocr/result/${userId}/${docType}`);
+    return res.data as OcrResult;
+  } catch {
+    return null; // 404 = not yet available
+  }
+}
+
+
 // ─── Applications ─────────────────────────────────────────────────────────────
 
+/**
+ * Compute a hex SHA-256 of a string using the Web Crypto API.
+ * Falls back to a djb2-style hash when SubtleCrypto is unavailable.
+ */
+async function sha256Hex(input: string): Promise<string> {
+  if (typeof window !== 'undefined' && window.crypto?.subtle) {
+    const encoded = new TextEncoder().encode(input);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', encoded);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Fallback for environments without SubtleCrypto (e.g. SSR)
+  let h = 5381;
+  for (let i = 0; i < input.length; i++) {
+    h = ((h << 5) + h) ^ input.charCodeAt(i);
+    h = h >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 export async function createApplication(data: { user_id: string; type?: string; loan_amount?: number }) {
-  const res = await apiClient.post('/applications', data);
+  // Idempotency key: sha256(userId:YYYY-MM-DD) — one key per user per day
+  const today = new Date().toISOString().slice(0, 10);
+  const idempotencyKey = await sha256Hex(`${data.user_id}:${today}`);
+
+  const res = await apiClient.post('/applications', data, {
+    headers: { 'X-Idempotency-Key': idempotencyKey },
+  });
   return res.data as { app_id: string; status: string };
 }
 
@@ -197,33 +261,43 @@ export async function computeEligibility(data: Record<string, unknown>) {
 
 // ─── Behavioral ───────────────────────────────────────────────────────────────
 
-export const getBehavioralQuestions = async (appId?: string): Promise<Question[]> => {
-  try {
-    const id = appId || sessionStorage.getItem('app_id') || 'default';
-    const res = await aiClient.get(`/behavioral/questions?app_id=${id}`);
-    return (res.data.questions || []) as Question[];
-  } catch {
-    return [
-      {
-        question_id: 'q1',
-        type: 'mcq',
-        question_text: 'How do you handle tight deadlines?',
-        options: ['I plan and prioritize', 'I ask for extensions', 'I work overtime', 'I delegate tasks'],
-      },
-      {
-        question_id: 'q2',
-        type: 'mcq',
-        question_text: 'If a financial emergency occurs, what would you do?',
-        options: ['Borrow from family', 'Use savings', 'Take a loan', 'Sell assets'],
-      },
-      {
-        question_id: 'q3',
-        type: 'free_text',
-        question_text: 'Describe a time you overcame a significant financial challenge.',
-        options: null,
-      },
-    ];
-  }
+export const getBehavioralQuestions = async (
+  appId?: string,
+  userId?: string,
+  forceRefresh = false,
+): Promise<Question[]> => {
+  const id =
+    appId ||
+    (typeof window !== 'undefined' ? sessionStorage.getItem('app_id') : null) ||
+    '';
+  const uid =
+    userId ||
+    (typeof window !== 'undefined' ? sessionStorage.getItem('user_id') : null) ||
+    '';
+
+  const params = new URLSearchParams({ app_id: id });
+  if (uid) params.set('user_id', uid);
+  if (forceRefresh) params.set('force_refresh', 'true');
+
+  console.log('[getBehavioralQuestions] requesting questions', {
+    app_id: id,
+    user_id: uid,
+    force_refresh: forceRefresh,
+  });
+
+  const res = await aiClient.get(`/behavioral/questions?${params.toString()}`);
+  const questions = (res.data.questions || []) as Question[];
+
+  console.log(
+    '[getBehavioralQuestions] received',
+    questions.length,
+    'questions for app_id',
+    id,
+    '— first question:',
+    questions[0]?.question_text ?? '(none)',
+  );
+
+  return questions;
 };
 
 export const submitBehavioralAnswers = async (answers: unknown, appId?: string) => {
@@ -365,8 +439,12 @@ export async function sendChatStream(
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export async function getAuditTrail(appId: string) {
-  const res = await apiClient.get(`/audit/${appId}/trail`);
-  return res.data;
+  try {
+    const res = await apiClient.get(`/audit/${appId}/trail`);
+    return res.data;
+  } catch {
+    return { events: [] };
+  }
 }
 
 export async function createGrievance(data: { app_id?: string; subject: string; description: string }) {

@@ -12,18 +12,47 @@ func KYCResultHandler(c *gin.Context) {
 
 	appID, _ := payload["app_id"].(string)
 	userID, _ := payload["user_id"].(string)
-	docTrust, _ := payload["doc_trust_score"].(float64)
-	faceMatchPass, _ := payload["face_match_pass"].(bool)
+	docType, _ := payload["doc_type"].(string)
 
 	if DB != nil {
-		kycStatus := "kyc_verified"
-		if !faceMatchPass {
-			kycStatus = "kyc_manual_review"
-		}
-		DB.Exec(`UPDATE profiles SET kyc_status=$1 WHERE user_id=$2`, kycStatus, userID)
-		if appID != "" {
-			DB.Exec(`UPDATE documents SET doc_trust_score=$1, status='verified' WHERE id=(SELECT id FROM documents WHERE user_id=$2 ORDER BY created_at DESC LIMIT 1)`,
-				docTrust, userID)
+		if docType == "face_match" {
+			// Face match result posted by AI service after comparing Aadhaar photo vs selfie.
+			// "result" is one of: "verified", "manual_review", "failed"
+			// "similarity" is the cosine similarity score (0.0–1.0)
+			faceResult, _ := payload["result"].(string)
+			similarity, _ := payload["similarity"].(float64)
+			if faceResult == "" {
+				faceResult = "pending"
+			}
+			kycStatus := "kyc_verified"
+			if faceResult != "verified" {
+				kycStatus = "kyc_manual_review"
+			}
+			DB.Exec(
+				`UPDATE profiles SET kyc_status=$1, face_match_result=$2, face_match_score=$3 WHERE user_id=$4`,
+				kycStatus, faceResult, similarity, userID,
+			)
+		} else {
+			// OCR / document trust result
+			docTrust, _ := payload["doc_trust_score"].(float64)
+			faceMatchPass, _ := payload["face_match_pass"].(bool)
+			// Only update kyc_status here if a face match hasn't been stored yet,
+			// to avoid overwriting a proper face_match result with the OCR fallback.
+			DB.Exec(`
+				UPDATE profiles
+				SET kyc_status = CASE
+					WHEN face_match_result IS NOT NULL THEN kyc_status
+					WHEN $1 THEN 'kyc_verified'
+					ELSE 'kyc_manual_review'
+				END
+				WHERE user_id=$2`, faceMatchPass, userID)
+			if appID != "" {
+				DB.Exec(`
+					UPDATE documents SET doc_trust_score=$1, status='verified'
+					WHERE user_id=$2 AND doc_type NOT IN ('selfie')
+					AND id=(SELECT id FROM documents WHERE user_id=$2 AND doc_type NOT IN ('selfie') ORDER BY created_at DESC LIMIT 1)`,
+					docTrust, userID)
+			}
 		}
 	}
 

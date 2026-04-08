@@ -39,6 +39,21 @@ export default function ChatInput({
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [value]);
 
+  // Re-focus input when AI finishes typing (disabled: true → false)
+  const prevDisabled = useRef(disabled);
+  useEffect(() => {
+    if (prevDisabled.current && !disabled) {
+      // Small delay so the browser settles before we steal focus
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    }
+    prevDisabled.current = disabled;
+  }, [disabled]);
+
+  // Focus on initial mount
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

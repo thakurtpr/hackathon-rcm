@@ -12,6 +12,7 @@ from app.routers.behavioral import router as behavioral_router
 from app.routers.chat import router as chat_router
 from app.routers.fraud import router as fraud_router
 from app.routers.health import router as health_router
+from app.routers.ocr import router as ocr_router
 from app.routers.roi import router as roi_router
 from app.services import minio_client, qdrant_service
 from app.services.risk_model import load_model as load_risk_model
@@ -163,7 +164,20 @@ async def lifespan(app: FastAPI):
         logger.warning("Risk model load failed (non-fatal): %s", exc)
         app.state.risk_model_loaded = False
 
-    # 8. Start Kafka consumer
+    # 8. Validate Groq API key
+    groq_key = settings.groq_api_key
+    placeholder_keys = {"gsk_xxxx", "YOUR_GROQ_API_KEY", "YOUR_GROQ_API_KEY_FROM_CONSOLE_GROQ_COM"}
+    if not groq_key or groq_key in placeholder_keys or groq_key.startswith("gsk_xxxx"):
+        logger.critical(
+            "GROQ_API_KEY is missing or is a placeholder — Groq calls will NOT work. "
+            "Set a real key in .env or as an environment variable."
+        )
+        app.state.groq_available = False
+    else:
+        logger.info("Groq API key detected (prefix: %s...) — provider=groq", groq_key[:8])
+        app.state.groq_available = True
+
+    # 9. Start Kafka consumer
     app.state.kafka_task = asyncio.create_task(start_kafka_consumer(app))
     logger.info("Kafka consumer started ✓")
 
@@ -193,3 +207,4 @@ app.include_router(behavioral_router, prefix="/behavioral")
 app.include_router(chat_router, prefix="/chat")
 app.include_router(fraud_router)
 app.include_router(roi_router, prefix="/roi")
+app.include_router(ocr_router)

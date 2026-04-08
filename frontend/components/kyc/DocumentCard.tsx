@@ -64,8 +64,28 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     [onFileSelect]
   )
 
+  const onDropRejected = useCallback(
+    (fileRejections: import('react-dropzone').FileRejection[]) => {
+      if (fileRejections.length > 0) {
+        const rejection = fileRejections[0]
+        const isTooLarge = rejection.errors.some((e) => e.code === 'file-too-large')
+        const isWrongType = rejection.errors.some((e) => e.code === 'file-invalid-type')
+        if (isTooLarge) {
+          setLocalError(`File too large. Maximum 10 MB allowed.`)
+        } else if (isWrongType) {
+          const accepted = Object.values(acceptedFiles).flat().join(', ') || 'JPG, PNG, PDF'
+          setLocalError(`Invalid file format. This field accepts: ${accepted}`)
+        } else {
+          setLocalError(rejection.errors[0]?.message || 'File rejected.')
+        }
+      }
+    },
+    [acceptedFiles]
+  )
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected,
     multiple: false,
     disabled: status !== "pending",
     accept: acceptedFiles,

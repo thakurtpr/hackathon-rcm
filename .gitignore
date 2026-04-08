@@ -1,4 +1,7 @@
 # Environment files — NEVER commit
+.env
+.env.local
+.env.*.local
 
 # Go
 backend/backend

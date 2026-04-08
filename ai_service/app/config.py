@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma4:31b"
     backend_base_url: str = "http://localhost:8000"
     ai_service_port: int = 8001
+    ai_service_base_url: str = "http://localhost:8001"
     kafka_brokers: str = "localhost:9092"
     kafka_group_id: str = "ai-svc"
     minio_endpoint: str = "localhost:9000"
@@ -51,43 +52,56 @@ class Settings(BaseSettings):
         return "ollama"
 
     def make_llm_call(self, prompt: str, system: str = "", max_tokens: int = 1000) -> str:
-        # If Groq key is a placeholder, return mock response instead of crashing
-        if not self._is_groq_key_valid() and self.llm_provider != "groq":
-            try:
-                return self._call_ollama(prompt, system, max_tokens)
-            except Exception as exc:
-                logger.warning("Ollama call failed, returning mock response: %s", exc)
-                return '{"status": "mock", "message": "LLM not configured — set GROQ_API_KEY in .env"}'
-
         want_json = "json" in prompt.lower() or "JSON" in prompt
-        for attempt in range(2):
-            try:
-                if self.llm_provider == "groq":
+
+        if self._is_groq_key_valid():
+            # Groq is available — use it with retry
+            for attempt in range(2):
+                try:
                     return self._call_groq(prompt, system, max_tokens, want_json)
-                else:
-                    return self._call_ollama(prompt, system, max_tokens)
-            except Exception as exc:
-                logger.warning("LLM call attempt %d failed: %s", attempt + 1, exc)
-                if attempt == 0:
-                    time.sleep(1)
-        return '{"status": "mock", "message": "LLM not configured — set GROQ_API_KEY in .env"}'
+                except Exception as exc:
+                    logger.warning("Groq attempt %d failed: %s", attempt + 1, exc)
+                    if attempt == 0:
+                        time.sleep(1)
+            logger.error("Groq failed after 2 attempts — trying Ollama fallback")
+
+        # Groq unavailable or failed — try Ollama
+        try:
+            result = self._call_ollama(prompt, system, max_tokens)
+            if result:
+                return result
+        except Exception as exc:
+            logger.warning("Ollama call failed: %s", exc)
+
+        logger.critical(
+            "All LLM providers failed. GROQ_API_KEY valid=%s. "
+            "Set a real GROQ_API_KEY in the .env file.",
+            self._is_groq_key_valid(),
+        )
+        return '{"status": "error", "message": "LLM unavailable — set GROQ_API_KEY in .env"}'
 
     def _call_groq(self, prompt: str, system: str, max_tokens: int, want_json: bool) -> str:
         from groq import Groq  # type: ignore
-        client = Groq(api_key=self.groq_api_key)
+        from app.services.groq_logger import log_groq_call
+
+        @log_groq_call
+        def _groq_create(prompt: str, model: str, messages: list, max_tokens: int, want_json: bool) -> str:
+            client = Groq(api_key=self.groq_api_key)
+            kwargs: dict = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+            }
+            if want_json:
+                kwargs["response_format"] = {"type": "json_object"}
+            response = client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content or ""
+
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        kwargs: dict = {
-            "model": self.groq_model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-        }
-        if want_json:
-            kwargs["response_format"] = {"type": "json_object"}
-        response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content or ""
+        return _groq_create(prompt, self.groq_model, messages, max_tokens, want_json)
 
     def _call_ollama(self, prompt: str, system: str, max_tokens: int) -> str:
         full_prompt = f"{system}\n\n{prompt}" if system else prompt

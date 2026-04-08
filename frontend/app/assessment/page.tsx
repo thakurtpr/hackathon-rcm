@@ -3,30 +3,38 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAssessmentStore } from '@/store/assessmentStore';
+import { useApplicationStore } from '@/store/applicationStore';
+import { useAuthStore } from '@/store/authStore';
 import { getBehavioralQuestions, submitBehavioralAnswers } from '@/lib/api';
 import { QuestionCard } from '@/components/assessment/QuestionCard';
 
 export default function AssessmentPage() {
   const router = useRouter();
 
-  const { 
-    questions, 
-    answers, 
-    currentQuestionIndex, 
-    status, 
-    setQuestions, 
-    addAnswer, 
-    nextQuestion, 
-    setStatus 
+  const {
+    questions,
+    answers,
+    currentQuestionIndex,
+    status,
+    setQuestions,
+    addAnswer,
+    nextQuestion,
+    setStatus
   } = useAssessmentStore();
 
-  // 3. Fetching Data (Strict)
+  const applicationId = useApplicationStore((s) => s.applicationId);
+  const userId = useAuthStore((s) => s.userId);
+
+  // Fetching Data
   useEffect(() => {
     const fetchData = async () => {
       if (questions.length === 0) {
         setStatus('loading');
         try {
-          const data = await getBehavioralQuestions();
+          // Pass app_id and user_id so the AI service can personalise questions
+          const appId = applicationId || undefined;
+          const uid = userId || undefined;
+          const data = await getBehavioralQuestions(appId, uid);
           setQuestions(data);
           setStatus('active');
         } catch (error) {
@@ -36,7 +44,7 @@ export default function AssessmentPage() {
       }
     };
     fetchData();
-  }, [questions.length, setQuestions, setStatus]);
+  }, [questions.length, setQuestions, setStatus, applicationId, userId]);
 
   // 4. Submit Handler (Strict Logic)
   const handleAnswerSubmit = async (answerText: string) => {

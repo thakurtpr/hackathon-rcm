@@ -6,15 +6,36 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore, type OnboardingData } from '@/store/onboardingStore';
 import { useIntentStore } from '@/store/intentStore';
 import { useApplicationStore } from '@/store/applicationStore';
+import { useAuthStore } from '@/store/authStore';
+import { createApplication } from '@/lib/api';
 import ChatBubble from '@/components/onboarding/ChatBubble';
 import ChatInputBar, { type InputType } from '@/components/onboarding/ChatInputBar';
 import { Loader2, Sparkles } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import axios from 'axios';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// ─── Separation of Concerns ───────────────────────────────────────────────────
+// This page is the PRIMARY driver for onboarding data collection (steps 1-11).
+// It collects: course, institution, year, score, income, loan amount, Aadhaar,
+// PAN, bank account, and co-applicant details via structured UI input widgets.
+//
+// The AI Chat (/chat page, powered by ai_service/app/agents/conversation_agent.py)
+// is a SEPARATE channel that also has a stage machine (INTENT → PROFILE_COLLECTION
+// → KYC_GUIDANCE → BEHAVIORAL_ASSESSMENT → …). The AI chat is intended for users
+// who prefer a conversational onboarding and for post-approval Q&A.
+//
+// RULE: Do NOT duplicate data collection between this wizard and the AI chat.
+//   - Wizard → collects structured data → posts to /applications at step 11.
+//   - AI chat → guides users who arrive via the chat widget, NOT via this wizard.
+//   - After wizard submission at step 11 the app calls the AI service chat
+//     endpoint (/chat/message) to sync the conversation state to KYC_GUIDANCE
+//     stage so the AI can continue from there if the user switches to chat.
+// ──────────────────────────────────────────────────────────────────────────────
 
 // Configuration for the conversation flow
 interface QuestionConfig {
@@ -48,7 +69,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { currentStep, data, setAnswer, nextStep } = useOnboardingStore();
   const { intent } = useIntentStore();
-  const { setApplicationId } = useApplicationStore();
+  const { applicationId, setApplicationId } = useApplicationStore();
+  const { userId } = useAuthStore();
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -168,7 +190,20 @@ export default function OnboardingPage() {
 
   const handleFinalSubmission = async () => {
     setIsSubmitting(true);
-    
+
+    // Guard: if we already have an active application in the store, skip creation
+    if (applicationId) {
+      addBotMessage(
+        "You already have an active application. Resuming your progress..."
+      );
+      // Mirror the app_id into sessionStorage for dashboard reads
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('app_id', applicationId);
+      }
+      setTimeout(() => router.push('/application/status'), 1500);
+      return;
+    }
+
     // UI Feedback
     addBotMessage(
       <div className="flex items-center gap-3">
@@ -178,23 +213,51 @@ export default function OnboardingPage() {
     );
 
     try {
-        // Dummy API Calls
-        await new Promise(resolve => setTimeout(resolve, 1500)); // updateProfile
-        console.log('Profile updated with:', data);
-        
-        // Success
-        const newAppId = 'APP-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-        setApplicationId(newAppId);
-        console.log('Application ID generated:', newAppId);
+      const effectiveUserId =
+        userId ||
+        (typeof window !== 'undefined' ? sessionStorage.getItem('user_id') : null) ||
+        '';
 
-        addBotMessage("Excellent! Your application is ready. Redirecting to verification...");
-        
-        setTimeout(() => {
-          router.push('/onboarding/kyc');
-        }, 1500);
-    } catch (error) {
-        setIsSubmitting(false);
-        addBotMessage("Something went wrong. Please try again.");
+      const result = await createApplication({
+        user_id: effectiveUserId,
+        type: intent === 'scholarship' ? 'scholarship' : 'loan',
+        loan_amount: typeof data.loanAmount === 'number' ? data.loanAmount * 100000 : 0,
+      });
+
+      const newAppId = result.app_id;
+      setApplicationId(newAppId);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('app_id', newAppId);
+      }
+
+      addBotMessage("Excellent! Your application is ready. Redirecting to verification...");
+
+      setTimeout(() => {
+        router.push('/onboarding/kyc');
+      }, 1500);
+    } catch (error: unknown) {
+      setIsSubmitting(false);
+
+      // Handle 409 Conflict: user already has an active application
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const existingId = (error.response.data as { app_id?: string }).app_id;
+        if (existingId) {
+          setApplicationId(existingId);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('app_id', existingId);
+          }
+          addBotMessage(
+            "You already have an active application. Resuming your progress..."
+          );
+          setTimeout(() => router.push('/application/status'), 1500);
+        } else {
+          addBotMessage("You already have an active application. Please check your dashboard.");
+          setTimeout(() => router.push('/dashboard'), 1500);
+        }
+        return;
+      }
+
+      addBotMessage("Something went wrong. Please try again.");
     }
   };
 
