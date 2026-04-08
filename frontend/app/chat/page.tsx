@@ -16,10 +16,11 @@ const ATTACH_PREFIX = 'ATTACH_DOC:';
 /** Map MIME type / extension to a human-readable KYC doc type */
 function inferDocType(file: File): string {
   const name = file.name.toLowerCase();
-  if (name.includes('aadhaar') || name.includes('aadhar')) return 'Aadhaar Card';
+  if (name.includes('aadhaar') || name.includes('aadhar') || name.includes('adhaar') || name.includes('adhar')) return 'Aadhaar Card';
   if (name.includes('pan')) return 'PAN Card';
   if (name.includes('marksheet') || name.includes('mark') || name.includes('grade')) return 'Marksheet';
   if (name.includes('passbook') || name.includes('bank')) return 'Bank Passbook';
+  if (name.includes('income') || name.includes('salary')) return 'Income Certificate';
   if (name.includes('caste') || name.includes('certificate')) return 'Certificate';
   if (file.type.startsWith('image/')) return 'Document Photo';
   return 'Document';
@@ -156,6 +157,13 @@ export default function ChatPage() {
       updateMessage(convId, uploadMsgId, `${ATTACH_PREFIX}${uploadedPayload}`);
 
       // Notify AI so it can acknowledge and continue onboarding
+      // Clear stale chat_session so we use the current conversation's id
+      if (typeof window !== 'undefined') {
+        const currentSession = sessionStorage.getItem('chat_session');
+        if (currentSession && currentSession !== convId) {
+          sessionStorage.removeItem('chat_session');
+        }
+      }
       setTyping(true);
       aiMsgIdRef.current = null;
       const notifyText = `I have uploaded my ${docType} (file: ${file.name}).`;

@@ -16,7 +16,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function detectDocType(filename: string): string {
   const name = filename.toLowerCase();
-  if (name.includes('aadhaar') || name.includes('adhar')) return 'aadhaar';
+  if (name.includes('aadhaar') || name.includes('aadhar') || name.includes('adhaar') || name.includes('adhar')) return 'aadhaar';
   if (name.includes('pan')) return 'pan';
   if (name.includes('marksheet') || name.includes('result') || name.includes('certificate') || name.includes('grade') || name.includes('transcript')) return 'marksheet';
   if (name.includes('income') || name.includes('salary') || name.includes('itr') || name.includes('form16')) return 'income_cert';

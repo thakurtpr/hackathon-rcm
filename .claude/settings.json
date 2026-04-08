@@ -22,7 +22,16 @@
       "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)",
       "Bash(ssh -i \"/Users/thakur/Downloads/hackathon.pem\" -o StrictHostKeyChecking=no -o ServerAliveInterval=30 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com \"echo ok\")",
       "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)",
-      "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)"
+      "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)",
+      "Bash(ssh -i \"/Users/thakur/Downloads/hackathon.pem\" -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com \"cd /home/ubuntu/hackforge && sg docker -c 'DOCKER_BUILDKIT=1 docker compose build --parallel 2>&1' && echo BUILD_OK || echo BUILD_FAILED\")",
+      "Bash(grep -E \"requirements|setup|Dockerfile|\\\\.py$\")",
+      "Bash(ls -la /Users/thakur/thakur-dev/hackforge-2.0/docker-compose*.yml)",
+      "Bash(go version:*)",
+      "Bash(npm --version)",
+      "Bash(DB_HOST=localhost REDIS_HOST=localhost KAFKA_HOST=localhost KAFKA_PORT=9092 MINIO_HOST=localhost MINIO_ENDPOINT=localhost:9000 AI_SERVICE_BASE_URL=http://localhost:8001 go run .)",
+      "Bash(API_INTERNAL_URL=http://localhost:8000 AI_INTERNAL_URL=http://localhost:8001 npm run dev)",
+      "Bash(curl -sf http://localhost:3000)",
+      "Bash(docker cp:*)"
     ],
     "deny": [
       "Read(./.env)",

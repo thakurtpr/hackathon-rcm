@@ -791,10 +791,10 @@ async def handle_kyc_guidance(
     if is_upload_notification:
         # Extract which doc type from the message for tracking
         doc_detected = None
-        for doc_key in ["aadhaar", "aadhar", "pan", "marksheet", "passbook", "bank", "income", "caste", "certificate", "photo", "selfie"]:
+        for doc_key in ["aadhaar", "aadhar", "adhaar", "adhar", "pan", "marksheet", "passbook", "bank", "income", "caste", "certificate", "photo", "selfie"]:
             if doc_key in msg_lower:
                 # Normalise
-                if doc_key in ("aadhaar", "aadhar"):
+                if doc_key in ("aadhaar", "aadhar", "adhaar", "adhar"):
                     doc_detected = "aadhaar"
                 elif doc_key == "pan":
                     doc_detected = "pan"
@@ -866,12 +866,34 @@ async def handle_kyc_guidance(
     # ── Check for explicit DONE signal ───────────────────────────────────────
     is_done = any(sig in msg_lower for sig in EXPLICIT_DONE_SIGNALS)
 
-    # Also allow "yes" / "ok" / "okay" / "ready" ONLY if at least 1 doc already uploaded
-    if not is_done and len(uploaded_docs) >= 1:
+    # Also allow "yes" / "ok" / "okay" / "ready" ONLY if ALL required docs are uploaded
+    required_uploaded = [d for d in KYC_REQUIRED_DOCS if d in uploaded_docs]
+    if not is_done and len(required_uploaded) >= len(KYC_REQUIRED_DOCS):
         soft_done = ["yes", "ok", "okay", "ready", "हाँ", "हां", "ହଁ"]
-        is_done = any(sig == msg_lower or sig in msg_lower for sig in soft_done)
+        is_done = any(sig == msg_lower for sig in soft_done)
 
     if is_done:
+        # Block DONE if required docs are still missing
+        missing_required = [d for d in KYC_REQUIRED_DOCS if d not in uploaded_docs]
+        if missing_required:
+            missing_labels = [d.replace("_", " ").title() for d in missing_required]
+            missing_str = ", ".join(missing_labels)
+            if lang == "en":
+                return (
+                    f"Hold on! You still need to upload: **{missing_str}**\n\n"
+                    "Please upload all required documents before typing DONE."
+                ), None
+            elif lang == "hi":
+                return (
+                    f"रुकिए! अभी ये दस्तावेज़ बाकी हैं: **{missing_str}**\n\n"
+                    "सभी ज़रूरी दस्तावेज़ अपलोड करें।"
+                ), None
+            else:
+                return (
+                    f"ଅପେକ୍ଷା କରନ୍ତୁ! ଏହି ଡକ୍ୟୁମେଣ୍ଟ ବାକି ଅଛି: **{missing_str}**\n\n"
+                    "ସମସ୍ତ ଡକ୍ୟୁମେଣ୍ଟ ଅପଲୋଡ କରନ୍ତୁ।"
+                ), None
+
         conv_data["kyc_done"] = True
         name = conv_data.get("profile_fields", {}).get("full_name", "")
         user_id = conv_data.get("user_id", "")

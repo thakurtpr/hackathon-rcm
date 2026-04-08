@@ -448,8 +448,8 @@ export async function sendChatStream(
 ) {
   const userId =
     typeof window !== 'undefined' ? sessionStorage.getItem('user_id') ?? undefined : undefined;
-  const sessionId =
-    typeof window !== 'undefined' ? sessionStorage.getItem('chat_session') ?? undefined : undefined;
+  // Use the conversationId directly — sessionStorage 'chat_session' can be stale
+  // from a prior conversation whose Redis stage has diverged.
 
   // Try SSE streaming endpoint first
   try {
@@ -458,7 +458,7 @@ export async function sendChatStream(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        conversation_id: sessionId || conversationId,
+        conversation_id: conversationId,
         user_id: userId,
         language: 'en',
       }),
@@ -502,7 +502,7 @@ export async function sendChatStream(
   try {
     const res = await aiClient.post('/chat/message', {
       message,
-      conversation_id: sessionId || conversationId,
+      conversation_id: conversationId,
       user_id: userId,
       language: 'en',
     });
