@@ -74,22 +74,21 @@ func sendEmail(to, subject, body string) error {
 	from := getEnv("SMTP_FROM", user)
 
 	if host == "" {
-		log.Printf("[EMAIL] SMTP not configured, skipping: to=%s subject=%s", to, subject)
+		log.Printf("[EMAIL] WARNING: SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASS). OTP will NOT be delivered!")
+		log.Printf("[EMAIL] to=%s subject=%s", to, subject)
 		log.Printf("[EMAIL] DEV LOG: %s", body)
-		return nil
+		return fmt.Errorf("SMTP not configured")
 	}
 
 	addr := fmt.Sprintf("%s:%s", host, port)
 	auth := smtp.PlainAuth("", user, pass, host)
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", from, to, subject, body)
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s", from, to, subject, body)
 	err := smtp.SendMail(addr, auth, from, []string{to}, []byte(msg))
 	if err != nil {
-		log.Printf("[EMAIL] FAILED to send to %s: %v", to, err)
-		log.Printf("[EMAIL] DEV LOG (FALLBACK): %s", body)
-		// Don't return error in dev so flow continues
-		return nil
+		log.Printf("[EMAIL] FAILED to send to %s via %s: %v", to, addr, err)
+		return fmt.Errorf("email send failed: %w", err)
 	}
-	log.Printf("[EMAIL] Sent successfully to %s", to)
+	log.Printf("[EMAIL] Sent successfully to %s via %s", to, host)
 	return nil
 }
 
