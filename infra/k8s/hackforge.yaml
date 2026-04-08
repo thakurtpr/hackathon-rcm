@@ -525,9 +525,11 @@ spec:
           ports:
             - containerPort: 3000
           env:
-            - {name: NEXT_PUBLIC_API_URL, value: "http://localhost:30000"}
-            - {name: NEXT_PUBLIC_AI_URL, value: "http://localhost:30001"}
-            - {name: NEXT_PUBLIC_WS_URL, value: "ws://localhost:30000"}
+            - {name: NEXT_PUBLIC_API_URL, value: "/api/backend"}
+            - {name: NEXT_PUBLIC_AI_URL, value: "/api/ai"}
+            - {name: NEXT_PUBLIC_WS_URL, value: "/ws"}
+            - {name: API_INTERNAL_URL, value: "http://backend:8000"}
+            - {name: AI_INTERNAL_URL, value: "http://ai-service:8001"}
           readinessProbe:
             httpGet:
               path: /
@@ -559,3 +561,86 @@ spec:
     app: frontend
   ports:
     - {port: 3000, targetPort: 3000, nodePort: 30002}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: hackforge
+data:
+  nginx.conf: |
+    worker_processes auto;
+    events { worker_connections 1024; }
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      sendfile on;
+      keepalive_timeout 65;
+      upstream frontend { server frontend:3000; }
+      server {
+        listen 80;
+        server_name _;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        location / { proxy_pass http://frontend; }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: hackforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+          resources:
+            limits: {memory: 128Mi, cpu: 100m}
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: hackforge
+spec:
+  selector:
+    app: nginx
+  ports:
+    - {port: 80, targetPort: 80}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-np
+  namespace: hackforge
+spec:
+  type: NodePort
+  selector:
+    app: nginx
+  ports:
+    - {port: 80, targetPort: 80, nodePort: 30080}
