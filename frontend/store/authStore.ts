@@ -60,6 +60,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         userId: state.userId,
         intent: state.intent,
+        kycStatus: state.kycStatus,
         isAuthenticated: state.isAuthenticated,
       }),
     }

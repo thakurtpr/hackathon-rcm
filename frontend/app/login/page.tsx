@@ -54,9 +54,9 @@ export default function LoginPage() {
     setApiError('');
     try {
       const res = await loginUser({ email: data.email, password: data.password });
-      login(res.access_token, { id: res.user_id, name: data.email });
+      login(res.access_token, { id: res.user_id, name: res.full_name || data.email }, res.intent, res.kyc_status, res.refresh_token);
       if (typeof window !== 'undefined') sessionStorage.setItem('user_id', res.user_id);
-      router.push('/chat');
+      router.push('/dashboard');
     } catch (err: unknown) {
       const errData = (err as { response?: { status?: number; data?: { error?: string; otp_token?: string; user_id?: string } } })?.response;
       if (errData?.status === 403 && errData?.data?.otp_token) {

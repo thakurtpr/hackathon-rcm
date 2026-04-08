@@ -165,14 +165,14 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	var userID, hash, intent string
+	var userID, hash, intent, fullName string
 	var isVerified bool
 
 	if DB != nil {
 		err := DB.QueryRow(
-			`SELECT id, password_hash, intent, is_verified FROM users WHERE email=$1`,
+			`SELECT id, password_hash, intent, is_verified, COALESCE(full_name, '') FROM users WHERE email=$1`,
 			req.Email,
-		).Scan(&userID, &hash, &intent, &isVerified)
+		).Scan(&userID, &hash, &intent, &isVerified, &fullName)
 		if err != nil || !checkPassword(req.Password, hash) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 			return
@@ -220,6 +220,7 @@ func LoginHandler(c *gin.Context) {
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
 		"user_id":       userID,
+		"full_name":     fullName,
 		"intent":        intent,
 		"kyc_status":    kycStatus,
 		"app_status":    "NEW",

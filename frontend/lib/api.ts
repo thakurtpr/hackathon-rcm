@@ -99,10 +99,11 @@ export async function verifyOTP(data: { otp_token: string; otp_code: string }) {
 
 export async function loginUser(data: { email: string; password: string }) {
   const res = await apiClient.post('/auth/login', data);
-  const { access_token, refresh_token, user_id, kyc_status, intent } = res.data as {
+  const { access_token, refresh_token, user_id, full_name, kyc_status, intent } = res.data as {
     access_token: string;
     refresh_token?: string;
     user_id: string;
+    full_name?: string;
     kyc_status?: string;
     intent?: string;
   };
@@ -110,7 +111,7 @@ export async function loginUser(data: { email: string; password: string }) {
     if (typeof window !== 'undefined') sessionStorage.setItem('refresh_token', refresh_token);
     useAuthStore.getState().setRefreshToken(refresh_token);
   }
-  return { access_token, user_id, kyc_status, intent };
+  return { access_token, refresh_token, user_id, full_name, kyc_status, intent };
 }
 
 // ─── Profile ─────────────────────────────────────────────────────────────────

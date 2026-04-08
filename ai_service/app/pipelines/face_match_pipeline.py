@@ -1,6 +1,15 @@
+"""
+Face match pipeline using DeepFace (SFace backend via OpenCV).
+
+Replaces InsightFace buffalo_l (~400MB) with DeepFace SFace (~37MB).
+Model is auto-downloaded on first use to ~/.deepface/weights/.
+
+SFace achieves ~99.4% accuracy on LFW benchmark — suitable for KYC.
+"""
 import asyncio
-import hashlib
 import logging
+import tempfile
+import os
 from io import BytesIO
 from typing import Optional
 
@@ -13,159 +22,196 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Module-level InsightFace instance (buffalo_l model loaded once at startup)
-_insightface_app: Optional[object] = None
+
+def _save_temp_image(image_bytes: bytes, suffix: str = ".jpg") -> str:
+    """Write bytes to a temp file and return path (caller must delete)."""
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp.write(image_bytes)
+    tmp.close()
+    return tmp.name
 
 
-def init_insightface() -> object:
-    """Load buffalo_l model at module startup. Call once from lifespan."""
-    global _insightface_app
-    if _insightface_app is None:
-        import insightface  # type: ignore
-        app = insightface.app.FaceAnalysis("buffalo_l")
-        app.prepare(ctx_id=0, det_size=(640, 640))
-        _insightface_app = app
-    return _insightface_app
+def _bytes_to_bgr(raw: bytes) -> np.ndarray:
+    """Convert raw image bytes → OpenCV BGR ndarray."""
+    pil_img = Image.open(BytesIO(raw)).convert("RGB")
+    rgb_arr = np.array(pil_img)
+    return cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2BGR)
 
 
-def get_embedding(image_path: str) -> np.ndarray:
-    """Return the face embedding vector for an image file path (synchronous)."""
-    face_app = _insightface_app
-    if face_app is None:
-        raise RuntimeError("InsightFace not initialized. Call init_insightface() first.")
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot read image: {image_path}")
-    faces = face_app.get(img)
-    if not faces:
-        raise ValueError(f"No face detected in: {image_path}")
-    emb = faces[0].embedding.astype(np.float32)
-    return emb / (np.linalg.norm(emb) + 1e-8)
+def _detect_face_opencv(bgr: np.ndarray) -> bool:
+    """Quick sanity check: does this image contain at least one face?"""
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    detector = cv2.CascadeClassifier(cascade_path)
+    faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+    return len(faces) > 0
 
 
-def cosine_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
-    """Compute cosine similarity between two normalised or un-normalised embeddings."""
-    n1 = emb1 / (np.linalg.norm(emb1) + 1e-8)
-    n2 = emb2 / (np.linalg.norm(emb2) + 1e-8)
-    return float(np.dot(n1, n2))
-
-
-def match_faces(aadhaar_path: str, selfie_path: str) -> dict:
+def _deepface_verify(img1_path: str, img2_path: str, threshold: float) -> dict:
     """
-    Compare aadhaar photo vs selfie using InsightFace embeddings.
+    Run DeepFace.verify() synchronously (called via asyncio.to_thread).
 
     Returns:
-        {"result": "verified", "similarity": 0.91}     if similarity >= 0.85
-        {"result": "manual_review", "similarity": 0.75} if 0.70 <= similarity < 0.85
-        {"result": "failed", "similarity": 0.60}        if similarity < 0.70
+        {"verified": bool, "distance": float, "similarity": float}
     """
-    settings = get_settings()
-    emb_a = get_embedding(aadhaar_path)
-    emb_b = get_embedding(selfie_path)
-    sim = cosine_similarity(emb_a, emb_b)
-    sim_rounded = round(sim, 4)
+    from deepface import DeepFace  # type: ignore
 
-    if sim >= settings.face_match_threshold:
-        result = "verified"
-    elif sim >= settings.face_match_manual_review_threshold:
-        result = "manual_review"
-    else:
-        result = "failed"
-
-    return {"result": result, "similarity": sim_rounded}
+    result = DeepFace.verify(
+        img1_path=img1_path,
+        img2_path=img2_path,
+        model_name="SFace",
+        detector_backend="opencv",  # fast, no extra deps
+        enforce_detection=False,    # don't raise if face not found — we check separately
+        align=True,
+        distance_metric="cosine",
+    )
+    distance = float(result.get("distance", 1.0))
+    # Convert cosine distance to similarity: similarity = 1 - distance
+    similarity = round(1.0 - distance, 4)
+    verified = result.get("verified", False)
+    return {"verified": verified, "distance": distance, "similarity": similarity}
 
 
 async def run(
     aadhaar_path: str,
     selfie_path: str,
     minio_client,
-    insightface_app,
+    insightface_app,   # kept for API compatibility — unused, DeepFace is self-contained
     qdrant_service,
     user_id: str,
     app_id: str,
 ) -> FaceMatchResult:
-    # TEMP FIX (Option B): When InsightFace model is not loaded, pass KYC through
-    # so users are not blocked. face_match_pass=True with flag "model_unavailable"
-    # lets the pipeline continue while making the bypass auditable in the result.
-    #
-    # WHY: The buffalo_l model (~400MB) fails to download/initialize at container
-    # startup in this environment. The original code returned face_match_pass=False,
-    # which hard-blocked every user at KYC — nobody could proceed.
-    #
-    # IDEAL FIX (Option A): Mount a Docker volume for the model cache so it
-    # downloads once and persists across restarts:
-    #   volumes:
-    #     - insightface_models:/root/.insightface
-    # Then reinstate face_match_pass=False here so real verification runs.
-    # Also add a /health/face-model endpoint to expose model load status.
-    if insightface_app is None:
-        logger.warning("InsightFace model not loaded — bypassing face match (KYC will pass)")
-        return FaceMatchResult(
-            face_match_score=0.0,
-            face_match_pass=True,
-            flag="model_unavailable",
-            message="face match model unavailable — manual review recommended",
-        )
+    """
+    Compare Aadhaar face vs selfie using DeepFace SFace embeddings.
+
+    Thresholds (cosine similarity, higher = more similar):
+      >= face_match_threshold (0.85)      → verified
+      >= face_match_manual_review (0.70)  → manual_review
+      < 0.70                              → failed
+    """
+    tmp_aadhaar: Optional[str] = None
+    tmp_selfie: Optional[str] = None
 
     try:
         settings = get_settings()
+
+        # 1. Fetch both images from MinIO in parallel
         aadhaar_bytes, selfie_bytes = await asyncio.gather(
             minio_client.fetch_file(aadhaar_path),
             minio_client.fetch_file(selfie_path),
         )
 
-        def _to_bgr(raw: bytes) -> np.ndarray:
-            pil_img = Image.open(BytesIO(raw)).convert("RGB")
-            rgb_arr = np.array(pil_img)
-            return cv2.cvtColor(rgb_arr, cv2.COLOR_RGB2BGR)
-
-        aadhaar_np, selfie_np = await asyncio.gather(
-            asyncio.to_thread(_to_bgr, aadhaar_bytes),
-            asyncio.to_thread(_to_bgr, selfie_bytes),
+        # 2. Quick face detection sanity check (OpenCV Haar cascade — no extra deps)
+        aadhaar_bgr, selfie_bgr = await asyncio.gather(
+            asyncio.to_thread(_bytes_to_bgr, aadhaar_bytes),
+            asyncio.to_thread(_bytes_to_bgr, selfie_bytes),
         )
 
-        faces_a = await asyncio.to_thread(insightface_app.get, aadhaar_np)
-        faces_b = await asyncio.to_thread(insightface_app.get, selfie_np)
+        aadhaar_has_face = await asyncio.to_thread(_detect_face_opencv, aadhaar_bgr)
+        selfie_has_face = await asyncio.to_thread(_detect_face_opencv, selfie_bgr)
 
-        if not faces_a or not faces_b:
+        if not aadhaar_has_face or not selfie_has_face:
+            missing = []
+            if not aadhaar_has_face:
+                missing.append("Aadhaar")
+            if not selfie_has_face:
+                missing.append("selfie")
+            logger.warning("[FaceMatch] No face detected in: %s", ", ".join(missing))
             return FaceMatchResult(
                 face_match_score=0.0,
                 face_match_pass=False,
                 flag="no_face_detected",
+                message=f"No face detected in: {', '.join(missing)}. Please upload a clear front-facing photo.",
             )
 
-        emb_a = faces_a[0].embedding.astype(np.float32)
-        emb_a = emb_a / (np.linalg.norm(emb_a) + 1e-8)
+        # 3. Write to temp files for DeepFace (needs file paths)
+        tmp_aadhaar = await asyncio.to_thread(_save_temp_image, aadhaar_bytes, ".jpg")
+        tmp_selfie = await asyncio.to_thread(_save_temp_image, selfie_bytes, ".jpg")
 
-        emb_b = faces_b[0].embedding.astype(np.float32)
-        emb_b = emb_b / (np.linalg.norm(emb_b) + 1e-8)
+        # 4. Run DeepFace verification (downloads SFace ~37MB on first run)
+        logger.info("[FaceMatch] Running DeepFace SFace comparison for user=%s", user_id)
+        match_result = await asyncio.to_thread(
+            _deepface_verify,
+            tmp_aadhaar,
+            tmp_selfie,
+            settings.face_match_threshold,
+        )
 
-        score = float(np.dot(emb_a, emb_b))
+        similarity = match_result["similarity"]
+        logger.info(
+            "[FaceMatch] user=%s similarity=%.4f verified=%s",
+            user_id, similarity, match_result["verified"],
+        )
 
-        if score >= settings.face_match_threshold:
+        # 5. Classify result
+        if similarity >= settings.face_match_threshold:
             flag = "passed"
             face_match_pass = True
-        elif score >= settings.face_match_manual_review_threshold:
+        elif similarity >= settings.face_match_manual_review_threshold:
             flag = "manual_review"
             face_match_pass = False
         else:
             flag = "failed"
             face_match_pass = False
 
-        uid_hash = hashlib.sha256(user_id.encode()).hexdigest()
-        await qdrant_service.upsert(
-            "face_embeddings",
-            uid_hash,
-            emb_b.tolist(),
-            {"user_id": user_id, "app_id": app_id},
-        )
+        # 6. Store face embedding in Qdrant for duplicate detection
+        # DeepFace SFace gives 128-dim embedding — store via represent()
+        try:
+            from deepface import DeepFace  # type: ignore
+            import hashlib
+
+            def _get_embedding(path: str) -> list:
+                reps = DeepFace.represent(
+                    img_path=path,
+                    model_name="SFace",
+                    detector_backend="opencv",
+                    enforce_detection=False,
+                    align=True,
+                )
+                return reps[0]["embedding"] if reps else []
+
+            selfie_emb = await asyncio.to_thread(_get_embedding, tmp_selfie)
+            if selfie_emb:
+                uid_hash = hashlib.sha256(user_id.encode()).hexdigest()
+                # Qdrant face_embeddings collection expects 512-dim (InsightFace default).
+                # Pad SFace 128-dim to 512 by repeating (keeps cosine similarity valid).
+                if len(selfie_emb) < 512:
+                    repeat_times = 512 // len(selfie_emb) + 1
+                    selfie_emb = (selfie_emb * repeat_times)[:512]
+                await qdrant_service.upsert(
+                    "face_embeddings",
+                    uid_hash,
+                    selfie_emb,
+                    {"user_id": user_id, "app_id": app_id, "model": "deepface_sface"},
+                )
+        except Exception as emb_exc:
+            logger.warning("[FaceMatch] Qdrant embedding store failed (non-fatal): %s", emb_exc)
 
         return FaceMatchResult(
-            face_match_score=round(score, 4),
+            face_match_score=round(similarity, 4),
             face_match_pass=face_match_pass,
             flag=flag,
         )
 
     except Exception as exc:
-        logger.error("Face match pipeline failed: %s", exc)
-        return FaceMatchResult(face_match_score=0.0, face_match_pass=False, flag="failed")
+        logger.error("[FaceMatch] Pipeline failed for user=%s: %s", user_id, exc)
+        return FaceMatchResult(
+            face_match_score=0.0,
+            face_match_pass=False,
+            flag="failed",
+            message=str(exc),
+        )
+    finally:
+        # Clean up temp files
+        for tmp_path in [tmp_aadhaar, tmp_selfie]:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+
+def init_insightface():
+    """Stub kept for API compatibility — DeepFace needs no pre-initialization."""
+    logger.info("[FaceMatch] Using DeepFace SFace backend (no pre-init needed)")
+    return None
