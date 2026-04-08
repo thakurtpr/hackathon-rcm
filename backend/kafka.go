@@ -69,19 +69,28 @@ func StartKafkaConsumer(ctx context.Context) {
 		"explanation.ready",
 	}
 
-	for _, topic := range topics {
+	for i, topic := range topics {
+		// Stagger starts by 2s so all 5 readers don't join the group
+		// simultaneously, which would trigger 5 cascading rebalances.
+		time.Sleep(time.Duration(i) * 2 * time.Second)
 		go consumeTopic(ctx, topic)
 	}
 }
 
 func consumeTopic(ctx context.Context, topic string) {
 	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{kafkaBroker},
-		GroupID:     "backend-svc",
-		Topic:       topic,
-		MinBytes:    1,
-		MaxBytes:    10e6,
-		StartOffset: kafka.LastOffset,
+		Brokers:           []string{kafkaBroker},
+		GroupID:           "backend-svc",
+		Topic:             topic,
+		MinBytes:          1,
+		MaxBytes:          10e6,
+		StartOffset:       kafka.LastOffset,
+		MaxWait:           5 * time.Second,
+		// Explicit timeouts prevent rebalance storms on startup and after
+		// transient errors where kafka-go library defaults are too tight.
+		SessionTimeout:    30 * time.Second,
+		HeartbeatInterval: 3 * time.Second,
+		RebalanceTimeout:  60 * time.Second,
 	})
 	defer r.Close()
 

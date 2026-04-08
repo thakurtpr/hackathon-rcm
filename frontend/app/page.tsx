@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useIntentStore } from '@/store/intentStore';
+import { useAuthStore } from '@/store/authStore';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -18,13 +19,21 @@ export default function LandingPage() {
       {/* TopNavBar */}
       <nav className="fixed top-0 w-full z-50 bg-gray-900/80 backdrop-blur-md shadow-sm border-b border-gray-800">
         <div className="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto w-full">
-          <div className="flex items-center gap-2">
-            <div className="text-xl font-bold tracking-tighter text-blue-800">ScholarFlow AI</div>
-            <div className="hidden lg:flex items-center gap-1 ml-4 px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-              <span className="material-symbols-outlined text-[12px]">language</span>
-              ENG | हिन्दी | ଓଡ଼ିଆ
+            <div className="flex items-center gap-2 cursor-pointer transition-transform hover:scale-105 active:scale-95" onClick={() => {
+              const state = useAuthStore.getState();
+              const role = typeof window !== 'undefined' ? sessionStorage.getItem('role') : null;
+              if (state.isAuthenticated) {
+                router.push(role === 'admin' ? '/admin/applications' : '/dashboard');
+              } else {
+                router.push('/');
+              }
+            }}>
+              <div className="text-xl font-bold tracking-tighter text-blue-800">ScholarFlow AI</div>
+              <div className="hidden lg:flex items-center gap-1 ml-4 px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
+                <span className="material-symbols-outlined text-[12px]">language</span>
+                ENG | हिन्दी | ଓଡ଼ିଆ
+              </div>
             </div>
-          </div>
           <div className="hidden md:flex gap-8 items-center text-sm font-medium tracking-tight">
             <a className="text-white font-semibold transition-colors" href="#">Aspirations</a>
             <a className="text-gray-400 hover:text-indigo-400 transition-colors" href="#">Global MS Funding</a>

@@ -13,11 +13,11 @@ const nextConfig = {
     return [
       {
         source: '/api/backend/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/:path*`,
+        destination: `${process.env.API_INTERNAL_URL || 'http://localhost:8000'}/:path*`,
       },
       {
         source: '/api/ai/:path*',
-        destination: `${process.env.NEXT_PUBLIC_AI_URL || 'http://localhost:8001'}/:path*`,
+        destination: `${process.env.AI_INTERNAL_URL || 'http://localhost:8001'}/:path*`,
       },
     ];
   },

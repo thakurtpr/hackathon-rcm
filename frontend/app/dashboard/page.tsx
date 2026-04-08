@@ -93,7 +93,18 @@ export default function DashboardPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 w-full border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-2xl">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div 
+            className="flex items-center gap-3 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+            onClick={() => {
+              const state = useAuthStore.getState();
+              const role = typeof window !== 'undefined' ? sessionStorage.getItem('role') : null;
+              if (state.isAuthenticated) {
+                router.push(role === 'admin' ? '/admin/applications' : '/dashboard');
+              } else {
+                router.push('/');
+              }
+            }}
+          >
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
               <Brain className="text-white w-5 h-5" />
             </div>
