@@ -162,6 +162,15 @@ func main() {
 	// WebSocket endpoint (auth via query param token)
 	r.GET("/applications/:app_id/live", WebSocketHandler)
 
+	// Admin routes — dedicated admin JWT (intent == "admin")
+	r.POST("/admin/login", AdminLoginHandler)
+	adminG := r.Group("/admin", AdminMiddleware())
+	{
+		adminG.GET("/stats/overview", AdminOverviewHandler)
+		adminG.GET("/stats/colleges", AdminCollegeStatsHandler)
+		adminG.GET("/users", AdminUsersHandler)
+	}
+
 	// Internal service-to-service routes (X-Internal-Key auth, not JWT)
 	// The AI service calls these to post pipeline results back and to fetch profiles.
 	internal := r.Group("/", InternalKeyMiddleware())

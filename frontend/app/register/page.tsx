@@ -6,15 +6,17 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { Loader2, User, Phone, Mail, Calendar, Lock, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Loader2, User, Phone, Mail, Calendar, Lock, ShieldCheck, ArrowRight, GraduationCap } from 'lucide-react';
 import { registerUser, verifyOTP } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 
 // --- Zod Schema ---
 const registerSchema = z.object({
   fullName: z.string().min(3, 'Full name must be at least 3 characters'),
+  college: z.string().min(2, 'College name must be at least 2 characters'),
   mobile: z.string().regex(/^[6-9]\d{9}$/, 'Invalid mobile number. Must be 10 digits starting with 6-9'),
   email: z.string().email('Invalid email address'),
+  intent: z.enum(['loan', 'scholarship', 'both'], { required_error: 'Please select your intent' }),
   dob: z.string().refine((val) => {
     const dob = new Date(val);
     const today = new Date();
@@ -44,7 +46,6 @@ export default function RegisterPage() {
   const [otpStep, setOtpStep] = useState(false);
   const [otpToken, setOtpToken] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [userId, setUserId] = useState('');
 
   const {
     register,
@@ -59,13 +60,13 @@ export default function RegisterPage() {
     try {
       const res = await registerUser({
         full_name: data.fullName,
+        college: data.college,
         mobile: data.mobile,
         email: data.email,
         dob: data.dob,
         password: data.password,
-        intent: 'loan',
+        intent: data.intent,
       });
-      setUserId(res.user_id);
       setOtpToken(res.otp_token);
       setOtpStep(true);
     } catch (err: unknown) {
@@ -137,6 +138,44 @@ export default function RegisterPage() {
                 />
               </div>
               {errors.fullName && <p className="text-xs font-medium text-red-500 mt-1 ml-1">{errors.fullName.message}</p>}
+            </div>
+
+            {/* College */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-gray-300 ml-1">College / Institution</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <GraduationCap className="h-4 w-4 text-zinc-400 group-focus-within:text-indigo-500 transition-colors" />
+                </div>
+                <input
+                  {...register('college')}
+                  type="text"
+                  placeholder="IIT Delhi / Delhi University..."
+                  className={`block w-full pl-10 pr-4 py-3 rounded-xl border border-gray-800 bg-gray-950/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all duration-200 ${errors.college ? 'border-red-500/50 ring-red-500/10' : ''}`}
+                />
+              </div>
+              {errors.college && <p className="text-xs font-medium text-red-500 mt-1 ml-1">{errors.college.message}</p>}
+            </div>
+
+            {/* Intent */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-gray-300 ml-1">I am looking for</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: 'loan', label: 'Loan', icon: '🏦' },
+                  { value: 'scholarship', label: 'Scholarship', icon: '🎓' },
+                  { value: 'both', label: 'Both', icon: '✨' },
+                ] as const).map((opt) => (
+                  <label key={opt.value} className="cursor-pointer">
+                    <input {...register('intent')} type="radio" value={opt.value} className="sr-only peer" />
+                    <div className="flex flex-col items-center gap-1 px-3 py-3 rounded-xl border border-gray-800 bg-gray-950/50 text-gray-400 peer-checked:border-indigo-500/50 peer-checked:bg-indigo-500/10 peer-checked:text-indigo-400 transition-all duration-200 text-center">
+                      <span className="text-lg">{opt.icon}</span>
+                      <span className="text-xs font-bold">{opt.label}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {errors.intent && <p className="text-xs font-medium text-red-500 mt-1 ml-1">{errors.intent.message}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

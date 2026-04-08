@@ -80,12 +80,105 @@ func BehavioralResultHandler(c *gin.Context) {
 			safeFloat(payload, "initiative"), safeFloat(payload, "social_cap"),
 			safeString(payload, "question_hash"),
 		)
+
+		// Auto-trigger eligibility computation now that we have the PQ score
+		if pqScore > 0 {
+			go autoComputeEligibility(appID, pqScore)
+		}
 	}
 
 	PublishKafkaEvent("behavioral.scored", payload)
 	AddAuditLog(appID, "", "BEHAVIORAL_RESULT", payload)
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// autoComputeEligibility queries profile/document data and computes the composite
+// eligibility score automatically after behavioral scoring completes.
+func autoComputeEligibility(appID string, pqScore float64) {
+	var academicScore, income float64
+	var cibilScore int
+	var kycStatus string
+
+	DB.QueryRow(`
+		SELECT COALESCE(p.academic_score, 70), COALESCE(p.income, 0),
+		       COALESCE(p.cibil_score, 0), COALESCE(p.kyc_status, 'pending')
+		FROM profiles p
+		JOIN applications a ON a.user_id = p.user_id
+		WHERE a.id = $1`, appID,
+	).Scan(&academicScore, &income, &cibilScore, &kycStatus)
+
+	if academicScore == 0 {
+		academicScore = 70
+	}
+
+	// Normalize CIBIL (300–900) to 0–100; if absent, use income tier
+	financialScore := 65.0
+	if cibilScore >= 300 {
+		financialScore = float64(cibilScore-300) / 6.0 // 300→0, 900→100
+	} else if income > 0 {
+		switch {
+		case income >= 1000000:
+			financialScore = 90
+		case income >= 500000:
+			financialScore = 75
+		case income >= 200000:
+			financialScore = 60
+		default:
+			financialScore = 45
+		}
+	}
+
+	// Average doc trust score for the application's user
+	var docTrust float64
+	DB.QueryRow(`
+		SELECT COALESCE(AVG(d.doc_trust_score), 75)
+		FROM documents d
+		JOIN applications a ON a.user_id = d.user_id
+		WHERE a.id = $1 AND d.doc_trust_score > 0`, appID,
+	).Scan(&docTrust)
+	if docTrust == 0 {
+		docTrust = 75
+	}
+
+	// KYC completeness
+	kycCompleteness := 50.0
+	switch kycStatus {
+	case "kyc_verified", "digilocker_verified", "approved":
+		kycCompleteness = 100
+	case "kyc_manual_review":
+		kycCompleteness = 65
+	}
+
+	composite := academicScore*0.25 + financialScore*0.30 + pqScore*0.20 + docTrust*0.15 + kycCompleteness*0.10
+
+	band := "review"
+	switch {
+	case composite >= 70:
+		band = "approved"
+	case composite >= 50 && pqScore >= 80:
+		band = "approved"
+	case composite < 50:
+		band = "rejected"
+	}
+
+	DB.Exec(`
+		INSERT INTO eligibility_scores(app_id, academic, financial, pq, doc_trust, kyc_completeness, composite, band, risk_band)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,'MEDIUM')
+		ON CONFLICT(app_id) DO UPDATE SET
+			academic=EXCLUDED.academic, financial=EXCLUDED.financial, pq=EXCLUDED.pq,
+			doc_trust=EXCLUDED.doc_trust, kyc_completeness=EXCLUDED.kyc_completeness,
+			composite=EXCLUDED.composite, band=EXCLUDED.band`,
+		appID, academicScore, financialScore, pqScore, docTrust, kycCompleteness, composite, band,
+	)
+	DB.Exec(`UPDATE applications SET status='eligibility_scoring', updated_at=NOW() WHERE id=$1`, appID)
+
+	PublishKafkaEvent("eligibility.calculated", map[string]interface{}{
+		"app_id": appID, "composite_score": composite, "band": band, "triggered_by": "behavioral",
+	})
+	AddAuditLog(appID, "", "ELIGIBILITY_AUTO_COMPUTED", map[string]interface{}{
+		"composite": composite, "band": band, "pq_score": pqScore,
+	})
 }
 
 func FraudResultHandler(c *gin.Context) {

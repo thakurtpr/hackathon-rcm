@@ -11,6 +11,20 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
+// Admin API client — reads admin_token from sessionStorage (separate from user auth)
+export const adminApiClient = axios.create({
+  baseURL: API_URL,
+  timeout: 30000,
+});
+
+adminApiClient.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = sessionStorage.getItem('admin_token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // AI service client for Python FastAPI
 export const aiClient = axios.create({
   baseURL: AI_URL,
@@ -72,6 +86,7 @@ apiClient.interceptors.response.use(
 
 export async function registerUser(data: {
   full_name: string;
+  college?: string;
   mobile: string;
   email: string;
   dob: string;
@@ -260,6 +275,74 @@ export async function computeEligibility(data: Record<string, unknown>) {
   return res.data;
 }
 
+// ─── Eligible Loans (computed client-side from score) ─────────────────────────
+
+export interface EligibleLoan {
+  id: string;
+  name: string;
+  provider: string;
+  maxAmount: number;
+  interestRate: string;
+  minScore: number;
+  description: string;
+  badge?: string;
+}
+
+const ALL_LOAN_PRODUCTS: EligibleLoan[] = [
+  {
+    id: 'vidya_lakshmi_premium',
+    name: 'Vidya Lakshmi Premium',
+    provider: 'SBI / Canara Bank',
+    maxAmount: 1500000,
+    interestRate: '8.5%',
+    minScore: 75,
+    description: 'Government-backed premium education loan for high achievers.',
+    badge: 'Best Rate',
+  },
+  {
+    id: 'central_sector_loan',
+    name: 'Central Sector Education Loan',
+    provider: 'Union Bank / PNB',
+    maxAmount: 1000000,
+    interestRate: '9.5%',
+    minScore: 60,
+    description: 'Subsidized interest loan for SC/ST/OBC/EWS students.',
+    badge: 'Subsidized',
+  },
+  {
+    id: 'bank_of_baroda_edu',
+    name: 'Baroda Gyan Education Loan',
+    provider: 'Bank of Baroda',
+    maxAmount: 800000,
+    interestRate: '10.5%',
+    minScore: 50,
+    description: 'Flexible repayment options with moratorium period.',
+  },
+  {
+    id: 'hdfc_student_loan',
+    name: 'HDFC Credila Education Loan',
+    provider: 'HDFC Credila',
+    maxAmount: 500000,
+    interestRate: '11.5%',
+    minScore: 40,
+    description: 'Quick disbursal with collateral-free option up to ₹5L.',
+  },
+  {
+    id: 'aicte_pragati_loan',
+    name: 'AICTE Pragati Scheme',
+    provider: 'AICTE / GOI',
+    maxAmount: 300000,
+    interestRate: '0% (Grant)',
+    minScore: 30,
+    description: 'Grant for girl students in technical education. No repayment.',
+    badge: 'Grant',
+  },
+];
+
+export function getEligibleLoans(compositeScore: number): EligibleLoan[] {
+  return ALL_LOAN_PRODUCTS.filter((l) => compositeScore >= l.minScore);
+}
+
 // ─── Behavioral ───────────────────────────────────────────────────────────────
 
 export const getBehavioralQuestions = async (
@@ -435,6 +518,61 @@ export async function sendChatStream(
   } catch (err) {
     onError(err as Error);
   }
+}
+
+// ─── Admin Stats ──────────────────────────────────────────────────────────────
+
+export interface AdminOverview {
+  total_users: number;
+  verified_users: number;
+  total_applications: number;
+  loan_applications: number;
+  scholarship_applications: number;
+  total_colleges: number;
+}
+
+export interface CollegeStat {
+  college: string;
+  total: number;
+  verified: number;
+  applications: number;
+  loan_intent: number;
+  scholarship_intent: number;
+  both_intent: number;
+}
+
+export interface AdminUser {
+  id: string;
+  full_name: string;
+  email: string;
+  mobile: string;
+  college: string;
+  intent: string;
+  is_verified: boolean;
+  created_at: string;
+  kyc_status: string;
+  app_count: number;
+}
+
+export async function adminLogin(email: string, password: string): Promise<{ access_token: string; email: string }> {
+  const res = await adminApiClient.post('/admin/login', { email, password });
+  return res.data as { access_token: string; email: string };
+}
+
+export async function getAdminOverview(): Promise<AdminOverview> {
+  const res = await adminApiClient.get('/admin/stats/overview');
+  return res.data as AdminOverview;
+}
+
+export async function getAdminCollegeStats(): Promise<{ colleges: CollegeStat[] }> {
+  const res = await adminApiClient.get('/admin/stats/colleges');
+  return res.data as { colleges: CollegeStat[] };
+}
+
+export async function getAdminUsers(college?: string): Promise<{ users: AdminUser[]; count: number }> {
+  const params = college ? `?college=${encodeURIComponent(college)}` : '';
+  const res = await adminApiClient.get(`/admin/users${params}`);
+  return res.data as { users: AdminUser[]; count: number };
 }
 
 // ─── Admin ────────────────────────────────────────────────────────────────────

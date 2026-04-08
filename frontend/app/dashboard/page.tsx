@@ -34,6 +34,8 @@ import {
   getMatchedScholarships,
   getDisbursalSchedule,
   getAuditTrail,
+  getEligibleLoans,
+  type EligibleLoan,
 } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -49,6 +51,12 @@ interface ApplicationData {
 interface EligibilityData {
   composite?: number;
   band?: string;
+  academic?: number;
+  financial?: number;
+  pq?: number;
+  doc_trust?: number;
+  kyc_completeness?: number;
+  risk_band?: string;
 }
 
 interface DisburseStep {
@@ -338,8 +346,9 @@ export default function DashboardPage() {
   const { wsStatus } = useApplicationStatusSocket(appId);
 
   // ── Derived values ────────────────────────────────────────────────────────────
-  const eligibilityScore = eligibility?.composite ?? 0;
-  const eligibilityBand = eligibility?.band ?? 'Pending';
+  const eligibilityBand = eligibility?.band ?? 'pending';
+  const isEligibilityPending = !eligibility?.composite || eligibilityBand.toLowerCase() === 'pending';
+  const eligibilityScore = isEligibilityPending ? 0 : (eligibility?.composite ?? 0);
   const disbursalSchedule: DisburseStep[] = (rawDisbursal || []).map((item) =>
     normaliseDisbursal(item as Record<string, unknown>)
   );
@@ -456,9 +465,15 @@ export default function DashboardPage() {
               <Brain className={`w-5 h-5 text-indigo-400 ${aiPulse === 1 ? 'animate-pulse' : ''}`} />
             </div>
             <div>
-              <p className="text-sm font-bold text-white">AI Analysis Complete</p>
+              <p className="text-sm font-bold text-white">
+                {isEligibilityPending ? 'AI Analysis in Progress' : 'AI Analysis Complete'}
+              </p>
               {eligibilityLoading ? (
                 <SkeletonBlock className="w-48 h-3 mt-1" />
+              ) : isEligibilityPending ? (
+                <p className="text-xs text-gray-400">
+                  Complete your <span className="text-indigo-400 font-bold">assessment via AI chat</span> to unlock your eligibility score
+                </p>
               ) : (
                 <p className="text-xs text-gray-400">
                   Your eligibility score is{' '}
@@ -820,46 +835,101 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* AI Eligibility Score */}
-            <div className="bg-white/[0.03] border border-white/8 rounded-3xl p-6 hover:border-indigo-500/20 transition-all">
-              <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-4 h-4 text-violet-400" />
-                <span className="text-xs font-bold uppercase tracking-widest text-violet-400">
-                  AI Eligibility
-                </span>
-              </div>
-              {eligibilityLoading ? (
-                <div className="space-y-3">
-                  <SkeletonBlock className="w-24 h-10" />
-                  <SkeletonBlock className="w-full h-2 rounded-full" />
+            {/* AI Credit Score — Prominent Card */}
+            <div className="bg-gradient-to-br from-indigo-600/10 via-violet-600/8 to-cyan-600/5 border border-indigo-500/20 rounded-3xl p-6 hover:border-indigo-500/40 transition-all relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none rounded-3xl" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <Shield className="w-4 h-4 text-violet-400" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-violet-400">
+                    AI Credit Score
+                  </span>
+                  <span className="ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    DISHA Computed
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <div className="flex items-end gap-3 mb-3">
-                    <span className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400">
-                      {eligibilityScore}
-                    </span>
-                    <span className="text-gray-500 text-sm font-bold mb-2">/100</span>
-                    <span
-                      className={`ml-auto mb-2 text-xs font-black px-2 py-0.5 rounded-full ${
-                        eligibilityScore >= 80
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : eligibilityScore >= 60
-                          ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                      }`}
+                {eligibilityLoading ? (
+                  <div className="space-y-3">
+                    <SkeletonBlock className="w-24 h-14" />
+                    <SkeletonBlock className="w-full h-2 rounded-full" />
+                    <SkeletonBlock className="w-full h-16 rounded-xl" />
+                  </div>
+                ) : isEligibilityPending ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-end gap-3">
+                      <span className="text-6xl font-black text-gray-700">—</span>
+                      <span className="text-gray-600 text-sm font-bold mb-2">/100</span>
+                      <span className="ml-auto mb-2 text-xs font-black px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        Pending
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full w-0 rounded-full bg-gray-700" />
+                    </div>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      Complete your AI chat assessment to unlock your score
+                    </p>
+                    <button
+                      onClick={() => router.push('/chat')}
+                      className="w-full mt-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-300 text-xs font-bold py-2 rounded-xl transition-all"
                     >
-                      {eligibilityBand}
-                    </span>
+                      Start with Disha AI →
+                    </button>
                   </div>
-                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-1000"
-                      style={{ width: `${eligibilityScore}%` }}
-                    />
-                  </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    {/* Big score number */}
+                    <div className="flex items-end gap-3 mb-3">
+                      <span className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-violet-400 to-cyan-400">
+                        {eligibilityScore}
+                      </span>
+                      <div className="mb-2">
+                        <span className="text-gray-400 text-sm font-bold">/100</span>
+                        <div
+                          className={`text-xs font-black px-2 py-0.5 rounded-full mt-1 w-fit ${
+                            eligibilityScore >= 80
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : eligibilityScore >= 60
+                              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          }`}
+                        >
+                          {eligibilityBand.toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Score bar */}
+                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-4">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 shadow-[0_0_10px_rgba(99,102,241,0.5)] transition-all duration-1000"
+                        style={{ width: `${eligibilityScore}%` }}
+                      />
+                    </div>
+                    {/* Score breakdown */}
+                    {eligibility && (eligibility.academic || eligibility.financial || eligibility.pq) ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'Academic', val: eligibility.academic, color: 'text-emerald-400' },
+                          { label: 'Financial', val: eligibility.financial, color: 'text-indigo-400' },
+                          { label: 'Potential (PQ)', val: eligibility.pq, color: 'text-violet-400' },
+                          { label: 'Doc Trust', val: eligibility.doc_trust, color: 'text-cyan-400' },
+                          { label: 'KYC Done', val: eligibility.kyc_completeness, color: 'text-amber-400' },
+                        ].filter(x => x.val != null && x.val !== 0).slice(0, 4).map(({ label, val, color }) => (
+                          <div key={label} className="bg-white/[0.03] rounded-xl p-2.5 border border-white/5">
+                            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">{label}</p>
+                            <p className={`text-base font-black ${color}`}>{Math.round((val ?? 0) * 10) / 10}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {eligibility?.risk_band && (
+                      <p className="text-[10px] text-gray-500 mt-3">
+                        Risk Band: <span className="text-indigo-400 font-bold">{eligibility.risk_band}</span>
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* ── Section 3: Scholarships Panel ──────────────────────────── */}
@@ -926,6 +996,52 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Eligible Loans Section */}
+            {!isEligibilityPending && eligibilityScore > 0 && (() => {
+              const eligibleLoans = getEligibleLoans(eligibilityScore);
+              if (eligibleLoans.length === 0) return null;
+              return (
+                <div className="bg-white/[0.03] border border-white/8 rounded-3xl overflow-hidden hover:border-emerald-500/20 transition-all">
+                  <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <IndianRupee className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-bold text-white">Eligible Loan Products</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 font-bold">
+                      {eligibleLoans.length} MATCHED
+                    </span>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {eligibleLoans.map((loan: EligibleLoan) => (
+                      <div
+                        key={loan.id}
+                        className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/20 transition-all"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h5 className="font-bold text-xs text-gray-200 leading-tight">{loan.name}</h5>
+                              {loan.badge && (
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  {loan.badge}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-500 mt-0.5">{loan.provider}</p>
+                          </div>
+                          <div className="text-right ml-2">
+                            <p className="text-xs font-black text-white">₹{(loan.maxAmount / 100000).toFixed(0)}L</p>
+                            <p className="text-[10px] text-emerald-400 font-bold">{loan.interestRate}</p>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-gray-600 leading-relaxed">{loan.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* AI Chat CTA */}
             <button
               onClick={() => router.push('/chat')}
@@ -938,7 +1054,7 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-bold text-white">Ask AI Assistant</p>
+                  <p className="text-sm font-bold text-white">Ask Disha AI</p>
                   <p className="text-xs text-gray-500">Loan advice, docs, eligibility</p>
                 </div>
               </div>

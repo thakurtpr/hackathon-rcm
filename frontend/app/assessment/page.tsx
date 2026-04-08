@@ -66,7 +66,8 @@ export default function AssessmentPage() {
       // Use the store's current state to get all answers including the one just added
       const finalAnswers = useAssessmentStore.getState().answers;
       await submitBehavioralAnswers(finalAnswers);
-      router.push('/application/status'); // Navigate to Live Status Tracker
+      // Navigate to dashboard — backend auto-computes eligibility from the behavioral score
+      router.push('/dashboard');
     }
   };
 

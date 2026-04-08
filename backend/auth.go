@@ -19,6 +19,7 @@ type RegisterRequest struct {
 	DOB      string `json:"dob" binding:"required"`
 	Password string `json:"password" binding:"required,min=8"`
 	Intent   string `json:"intent" binding:"required,oneof=loan scholarship both"`
+	College  string `json:"college"`
 }
 
 type LoginRequest struct {
@@ -75,8 +76,8 @@ func RegisterHandler(c *gin.Context) {
 
 	if DB != nil {
 		_, err = DB.Exec(
-			`INSERT INTO users(id, full_name, mobile, email, dob, password_hash, intent) VALUES($1,$2,$3,$4,$5,$6,$7)`,
-			userID, req.FullName, req.Mobile, req.Email, req.DOB, hash, req.Intent,
+			`INSERT INTO users(id, full_name, mobile, email, dob, password_hash, intent, college) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+			userID, req.FullName, req.Mobile, req.Email, req.DOB, hash, req.Intent, req.College,
 		)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "mobile or email already registered"})

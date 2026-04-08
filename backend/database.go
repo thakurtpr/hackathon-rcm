@@ -86,6 +86,9 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='face_match_score') THEN
     ALTER TABLE profiles ADD COLUMN face_match_score NUMERIC DEFAULT NULL;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='college') THEN
+    ALTER TABLE users ADD COLUMN college TEXT DEFAULT NULL;
+  END IF;
 END $$;
 
 CREATE TABLE IF NOT EXISTS documents (

@@ -756,18 +756,122 @@ async def _complete_profile_collection(
 
 
 # ─── Stage 3: KYC_GUIDANCE ───────────────────────────────────────────────────
+
+# Required documents that must be uploaded before proceeding
+KYC_REQUIRED_DOCS = ["aadhaar", "pan", "marksheet", "bank_passbook"]
+KYC_OPTIONAL_DOCS = ["income_cert", "caste_certificate"]
+
+# Phrases that indicate a document was uploaded (from frontend notification)
+# We track these but do NOT auto-advance — we wait for explicit DONE
+UPLOAD_NOTIFICATION_PATTERNS = [
+    "i have uploaded my", "uploaded my", "i uploaded", "have uploaded",
+    "अपलोड कर दिया", "अपलोड किया",
+]
+
+# Only these phrases mean the user is explicitly DONE uploading all docs
+EXPLICIT_DONE_SIGNALS = [
+    "done", "complete", "completed", "submit", "submitted",
+    "finish", "finished", "all done", "all uploaded", "all documents uploaded",
+    "सभी अपलोड", "सभी दस्तावेज़", "ହଁ ସବୁ ଅପଲୋଡ",
+]
+
+
 async def handle_kyc_guidance(
     message: str, conversation_id: str, conv_data: dict
 ) -> Tuple[str, Optional[str]]:
     lang = conv_data.get("language", "en")
     msg_lower = message.lower().strip()
 
-    done_signals = [
-        "done", "uploaded", "upload", "complete", "completed",
-        "yes", "ok", "okay", "submit", "submitted", "ready", "finish", "finished",
-    ]
+    # Track uploaded docs count in conv_data
+    uploaded_docs: list = conv_data.get("uploaded_docs", [])
 
-    if any(sig in msg_lower for sig in done_signals):
+    # ── Check if this message is a document upload notification from frontend ─
+    is_upload_notification = any(pat in msg_lower for pat in UPLOAD_NOTIFICATION_PATTERNS)
+
+    if is_upload_notification:
+        # Extract which doc type from the message for tracking
+        doc_detected = None
+        for doc_key in ["aadhaar", "aadhar", "pan", "marksheet", "passbook", "bank", "income", "caste", "certificate", "photo", "selfie"]:
+            if doc_key in msg_lower:
+                # Normalise
+                if doc_key in ("aadhaar", "aadhar"):
+                    doc_detected = "aadhaar"
+                elif doc_key == "pan":
+                    doc_detected = "pan"
+                elif doc_key == "marksheet":
+                    doc_detected = "marksheet"
+                elif doc_key in ("passbook", "bank"):
+                    doc_detected = "bank_passbook"
+                elif doc_key == "income":
+                    doc_detected = "income_cert"
+                elif doc_key in ("caste", "certificate"):
+                    doc_detected = "caste_certificate"
+                elif doc_key in ("photo", "selfie"):
+                    doc_detected = "selfie"
+                break
+
+        if doc_detected and doc_detected not in uploaded_docs:
+            uploaded_docs.append(doc_detected)
+        conv_data["uploaded_docs"] = uploaded_docs
+
+        # Check how many required docs are still missing
+        remaining_required = [d for d in KYC_REQUIRED_DOCS if d not in uploaded_docs]
+        docs_count = len(uploaded_docs)
+
+        # Build acknowledgment response
+        doc_label = (doc_detected or "document").replace("_", " ").title()
+
+        if remaining_required:
+            remaining_labels = [d.replace("_", " ").title() for d in remaining_required]
+            remaining_str = ", ".join(remaining_labels)
+            if lang == "en":
+                reply = (
+                    f"✅ **{doc_label}** received! ({docs_count} document(s) uploaded so far)\n\n"
+                    f"Still needed: **{remaining_str}**\n\n"
+                    "Please upload the remaining documents. When all are done, type **DONE** to continue."
+                )
+            elif lang == "hi":
+                reply = (
+                    f"✅ **{doc_label}** मिल गया! ({docs_count} दस्तावेज़ अपलोड हुए)\n\n"
+                    f"अभी बाकी: **{remaining_str}**\n\n"
+                    "बाकी दस्तावेज़ अपलोड करें और फिर **DONE** टाइप करें।"
+                )
+            else:
+                reply = (
+                    f"✅ **{doc_label}** ମିଳିଲା! ({docs_count} ଡକ୍ୟୁମେଣ୍ଟ ଅପଲୋଡ ହୋଇଛି)\n\n"
+                    f"ଏখনও ଦରକାର: **{remaining_str}**\n\n"
+                    "ବାକି ଡକ୍ୟୁମେଣ୍ଟ ଅପଲୋଡ କରି **DONE** ଟାଇପ କରନ୍ତୁ।"
+                )
+        else:
+            # All required docs uploaded — prompt DONE
+            if lang == "en":
+                reply = (
+                    f"✅ **{doc_label}** received! 🎉 All required documents are uploaded!\n\n"
+                    "We have:\n" +
+                    "\n".join(f"  ✓ {d.replace('_',' ').title()}" for d in uploaded_docs) +
+                    "\n\nType **DONE** to proceed to the next step! 🚀"
+                )
+            elif lang == "hi":
+                reply = (
+                    f"✅ **{doc_label}** मिल गया! 🎉 सभी ज़रूरी दस्तावेज़ अपलोड हो गए!\n\n"
+                    "**DONE** टाइप करके आगे बढ़ें। 🚀"
+                )
+            else:
+                reply = (
+                    f"✅ **{doc_label}** ମିଳିଲା! 🎉 ସମସ୍ତ ଡକ୍ୟୁମେଣ୍ଟ ଅପଲୋଡ ହୋଇଛି!\n\n"
+                    "**DONE** ଟାଇପ କରି ଆଗକୁ ଯାଆନ୍ତୁ। 🚀"
+                )
+        return reply, None  # Stay in KYC stage, waiting for DONE
+
+    # ── Check for explicit DONE signal ───────────────────────────────────────
+    is_done = any(sig in msg_lower for sig in EXPLICIT_DONE_SIGNALS)
+
+    # Also allow "yes" / "ok" / "okay" / "ready" ONLY if at least 1 doc already uploaded
+    if not is_done and len(uploaded_docs) >= 1:
+        soft_done = ["yes", "ok", "okay", "ready", "हाँ", "हां", "ହଁ"]
+        is_done = any(sig == msg_lower or sig in msg_lower for sig in soft_done)
+
+    if is_done:
         conv_data["kyc_done"] = True
         name = conv_data.get("profile_fields", {}).get("full_name", "")
         user_id = conv_data.get("user_id", "")
@@ -810,9 +914,17 @@ async def handle_kyc_guidance(
         if ocr_block:
             ocr_block = "\n\n**Here's what we extracted from your documents:**" + ocr_block
 
+        # Summary of uploaded docs
+        docs_uploaded_summary = ""
+        if uploaded_docs:
+            docs_uploaded_summary = "\n\n**Documents received:**\n" + "\n".join(
+                f"  ✓ {d.replace('_', ' ').title()}" for d in uploaded_docs
+            )
+
         if lang == "en":
             reply = (
-                f"Great, {name}! Your documents have been received. 📋"
+                f"Wonderful, {name}! Your document verification is complete. 📋"
+                f"{docs_uploaded_summary}"
                 f"{ocr_block}"
                 f"{face_status}\n\n"
                 "Now, I want to understand you better as a person — because **your potential "
@@ -823,7 +935,8 @@ async def handle_kyc_guidance(
             )
         elif lang == "hi":
             reply = (
-                f"बढ़िया! आपके दस्तावेज़ मिल गए। 📋"
+                f"शाबाश, {name}! आपके दस्तावेज़ मिल गए। 📋"
+                f"{docs_uploaded_summary}"
                 f"{ocr_block}"
                 f"{face_status}\n\n"
                 "अब मैं आपसे 8 सवाल पूछूँगी — ईमानदारी से जवाब दें।\n\n"
@@ -831,7 +944,8 @@ async def handle_kyc_guidance(
             )
         else:
             reply = (
-                f"ଭଲ! ଆପଣଙ୍କ ଡକ୍ୟୁମେଣ୍ଟ ମିଳିଲା। 📋"
+                f"ଭଲ, {name}! ଆପଣଙ୍କ ଡକ୍ୟୁମେଣ୍ଟ ମିଳିଲା। 📋"
+                f"{docs_uploaded_summary}"
                 f"{ocr_block}"
                 f"{face_status}\n\n"
                 "ଏବେ ମୁଁ ଆପଣଙ୍କୁ ୮ ଟି ପ୍ରଶ୍ନ ପଚାରିବି।\n\n"
@@ -839,10 +953,28 @@ async def handle_kyc_guidance(
             )
         return reply, STAGE_BEHAVIORAL
 
+    # ── Not a doc notification and not DONE — give guidance ──────────────────
+    docs_count = len(uploaded_docs)
+    uploaded_labels = [d.replace("_", " ").title() for d in uploaded_docs] if uploaded_docs else []
+    remaining = [d.replace("_", " ").title() for d in KYC_REQUIRED_DOCS if d not in uploaded_docs]
+
     if lang == "hi":
-        return "ठीक है! जब तैयार हों, **DONE** टाइप करें। 😊", None
+        if docs_count > 0:
+            return (
+                f"अभी तक {docs_count} दस्तावेज़ मिले: {', '.join(uploaded_labels)}।\n\n"
+                f"बाकी: {', '.join(remaining) if remaining else 'सब हो गया'}।\n\n"
+                "सभी अपलोड होने के बाद **DONE** टाइप करें। 😊"
+            ), None
+        return "ठीक है! दस्तावेज़ अपलोड करें और फिर **DONE** टाइप करें। 😊", None
     elif lang == "od":
-        return "ଠିକ ଅଛି! ପ୍ରସ୍ତୁତ ହେଲେ **DONE** ଟାଇପ୍ କରନ୍ତୁ। 😊", None
+        return "ଠିକ ଅଛି! ଡକ୍ୟୁମେଣ୍ଟ ଅପଲୋଡ କରି **DONE** ଟାଇପ୍ କରନ୍ତୁ। 😊", None
+
+    if docs_count > 0:
+        return (
+            f"So far I've received: **{', '.join(uploaded_labels)}**.\n\n"
+            + (f"Still needed: **{', '.join(remaining)}**\n\n" if remaining else "All required documents are in! 🎉\n\n")
+            + "Type **DONE** when you're ready to continue. 😊"
+        ), None
     return (
         "No worries! Take your time to upload the documents. "
         "When you're ready, type **DONE** and we'll move to the next step. 😊"

@@ -1,4 +1,34 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_FLOW_V3_ENABLED": "true",
+    "CLAUDE_FLOW_HOOKS_ENABLED": "true"
+  },
+  "attribution": {
+    "commit": "Co-Authored-By: claude-flow <ruv@ruv.net>",
+    "pr": "🤖 Generated with [claude-flow](https://github.com/ruvnet/claude-flow)"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx @claude-flow*)",
+      "Bash(npx claude-flow*)",
+      "Bash(node .claude/*)",
+      "mcp__claude-flow__:*",
+      "Bash(ssh -i \"/Users/thakur/Downloads/hackathon.pem\" -o StrictHostKeyChecking=no ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com \"curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker ubuntu\")",
+      "Bash(rsync -az --progress --exclude=node_modules --exclude=.next --exclude=frontend/.next '--exclude=*.pyc' --exclude=__pycache__ --exclude=.env --exclude=backups --exclude=.last_backup_tag --exclude=backend/hackforge --exclude=backend/backend-svc -e 'ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no' /Users/thakur/thakur-dev/hackforge-2.0/ ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com:/home/ubuntu/hackforge/)",
+      "Bash(ls /Users/thakur/thakur-dev/hackforge-2.0/.env*)",
+      "Bash(ssh -i \"/Users/thakur/Downloads/hackathon.pem\" -o StrictHostKeyChecking=no ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com \"ls /home/ubuntu/hackforge/\")",
+      "Bash(scp -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no /Users/thakur/thakur-dev/hackforge-2.0/.env ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com:/home/ubuntu/hackforge/.env)",
+      "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)",
+      "Bash(ssh -i \"/Users/thakur/Downloads/hackathon.pem\" -o StrictHostKeyChecking=no -o ServerAliveInterval=30 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com \"echo ok\")",
+      "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)",
+      "Bash(ssh -i /Users/thakur/Downloads/hackathon.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=60 ubuntu@ec2-98-80-209-211.compute-1.amazonaws.com ':*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -160,27 +190,6 @@
   "statusLine": {
     "type": "command",
     "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/statusline.cjs\"'"
-  },
-  "permissions": {
-    "allow": [
-      "Bash(npx @claude-flow*)",
-      "Bash(npx claude-flow*)",
-      "Bash(node .claude/*)",
-      "mcp__claude-flow__:*"
-    ],
-    "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)"
-    ]
-  },
-  "attribution": {
-    "commit": "Co-Authored-By: claude-flow <ruv@ruv.net>",
-    "pr": "🤖 Generated with [claude-flow](https://github.com/ruvnet/claude-flow)"
-  },
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_FLOW_V3_ENABLED": "true",
-    "CLAUDE_FLOW_HOOKS_ENABLED": "true"
   },
   "claudeFlow": {
     "version": "3.0.0",
